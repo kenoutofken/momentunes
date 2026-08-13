@@ -15,6 +15,7 @@ export interface Memory {
   people: string[];
   isPublic: boolean;
   imageUrl?: string | null;
+  imageUrls?: string[];
   tags: string[];
   createdAt: string;
   userId?: string;

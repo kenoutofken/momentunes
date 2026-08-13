@@ -27,6 +27,7 @@ export function useMemories() {
     people: string[] | null;
     is_public: boolean | null;
     image_url: string | null;
+    image_urls: string[] | null;
     tags: string[] | null;
     created_at: string;
   }): Memory => ({
@@ -46,6 +47,7 @@ export function useMemories() {
     people: r.people ?? [],
     isPublic: r.is_public ?? false,
     imageUrl: r.image_url ?? null,
+    imageUrls: r.image_urls?.length ? r.image_urls : r.image_url ? [r.image_url] : [],
     tags: r.tags ?? [],
     createdAt: r.created_at,
   }), []);
@@ -119,6 +121,7 @@ export function useMemories() {
         people: memory.people,
         is_public: memory.isPublic,
         image_url: memory.imageUrl ?? null,
+        image_urls: memory.imageUrls ?? (memory.imageUrl ? [memory.imageUrl] : []),
         tags: memory.tags ?? [],
       })
       .select("*")
@@ -151,6 +154,7 @@ export function useMemories() {
       people: memory.people,
       is_public: memory.isPublic,
       image_url: memory.imageUrl ?? null,
+      image_urls: memory.imageUrls ?? (memory.imageUrl ? [memory.imageUrl] : []),
       tags: memory.tags ?? [],
     }).eq("id", id);
     if (error) {

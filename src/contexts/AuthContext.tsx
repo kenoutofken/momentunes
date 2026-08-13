@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -14,6 +15,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   signOut: async () => {},
+  refreshUser: async () => null,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -22,6 +24,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const refreshUser = async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    setUser(data.user);
+    setSession((current) => current ? { ...current, user: data.user } : current);
+    return data.user;
+  };
 
   useEffect(() => {
     // Subscribe first so login/logout changes update the whole app immediately.
@@ -40,7 +50,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    const refreshOnReturn = () => { void refreshUser(); };
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") void refreshUser(); };
+    window.addEventListener("focus", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("focus", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, []);
 
   const signOut = async () => {
@@ -48,7 +67,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

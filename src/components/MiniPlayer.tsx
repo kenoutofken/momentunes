@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useId } from "react";
-import { Play, Pause, Volume2, VolumeX, Loader2 } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Loader2, Music2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAudioSettings } from "@/contexts/AudioSettingsContext";
@@ -8,7 +8,7 @@ interface MiniPlayerProps {
   songTitle: string;
   artist: string;
   autoPlay?: boolean;
-  variant?: "default" | "overlay" | "compact";
+  variant?: "default" | "overlay" | "compact" | "map";
 }
 
 interface DeezerTrack {
@@ -23,6 +23,7 @@ interface DeezerTrack {
 const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }: MiniPlayerProps) => {
   const isOverlay = variant === "overlay";
   const isCompact = variant === "compact";
+  const isMap = variant === "map";
   const playerId = useId();
   const [track, setTrack] = useState<DeezerTrack | null>(null);
   const [loading, setLoading] = useState(false);
@@ -181,6 +182,16 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
   };
 
   if (loading) {
+    if (isMap) {
+      return (
+        <div className="track-row map-track-loading" aria-live="polite">
+          <div className="track-art track-art-placeholder"><Loader2 className="animate-spin" /></div>
+          <div className="track-copy"><strong>{songTitle}</strong><span>Finding preview…</span></div>
+          <div className="track-progress"><span style={{ width: 0 }} /></div>
+          <button type="button" disabled aria-label="Finding preview"><Loader2 className="animate-spin" /></button>
+        </div>
+      );
+    }
     if (isCompact) {
       return (
         <button
@@ -203,6 +214,16 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
   }
 
   if (!track) {
+    if (isMap) {
+      return (
+        <div className="track-row map-track-unavailable">
+          <div className="track-art track-art-placeholder"><Music2 /></div>
+          <div className="track-copy"><strong>{songTitle}</strong><span>{artist} · Preview unavailable</span></div>
+          <div className="track-progress"><span style={{ width: 0 }} /></div>
+          <button type="button" disabled aria-label="No preview available"><Play /></button>
+        </div>
+      );
+    }
     if (isCompact) {
       return (
         <button
@@ -242,6 +263,22 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
           preload="none"
         />
       </>
+    );
+  }
+
+  if (isMap) {
+    return (
+      <div className="track-row">
+        {track.albumCover ? (
+          <img className="track-art" src={track.albumCover} alt={`${track.album} album cover`} />
+        ) : (
+          <div className="track-art track-art-placeholder" aria-label="Album artwork unavailable"><Music2 /></div>
+        )}
+        <div className="track-copy"><strong>{track.title || songTitle}</strong><span>{track.artist || artist}</span></div>
+        <div className="track-progress" onClick={handleProgressClick}><span style={{ width: `${progress}%` }} /></div>
+        <button type="button" onClick={handleTogglePlay} aria-label={playing ? "Pause preview" : "Play preview"}>{playing ? <Pause size={22} fill="currentColor" /> : <Play size={23} fill="currentColor" />}</button>
+        <audio ref={audioRef} src={track.preview} muted={siteMuted || muted || siteVolume === 0} onEnded={handleEnded} preload="none" />
+      </div>
     );
   }
 

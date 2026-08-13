@@ -43,6 +43,7 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          image_urls: string[]
           is_public: boolean
           location_lat: number | null
           location_lng: number | null
@@ -64,6 +65,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          image_urls?: string[]
           is_public?: boolean
           location_lat?: number | null
           location_lng?: number | null
@@ -85,6 +87,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          image_urls?: string[]
           is_public?: boolean
           location_lat?: number | null
           location_lng?: number | null
