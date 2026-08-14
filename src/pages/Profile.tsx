@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { AudioWaveform, Camera, ChevronDown, ChevronRight, Heart, KeyRound, Loader2, LogOut, Mail, Map as MapIcon, MapPin, Plus, Star, UserRound } from "lucide-react";
+import { Camera, ChevronRight, Heart, KeyRound, Loader2, LogOut, Mail, Map as MapIcon, MapPin, Plus, Star, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -19,7 +19,6 @@ const Profile = () => {
   const { memories } = useMemories();
   const { profile, setProfile } = useCurrentProfile();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [displayNameOpen, setDisplayNameOpen] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState("");
   const [savingDisplayName, setSavingDisplayName] = useState(false);
@@ -113,18 +112,14 @@ const Profile = () => {
 
   return <main className="profile-page">
     <aside className="desktop-map-sidebar desktop-library-sidebar desktop-profile-sidebar">
-      <div className="desktop-brand"><AudioWaveform /><span>Momentunes</span></div>
       <button type="button" className="desktop-add-memory" onClick={() => navigate("/?add=true")}><Plus /><span>Add memory</span></button>
       <nav className="desktop-map-nav"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button className="active"><UserRound /><span>Account</span></button></nav>
       <div className="desktop-account-wrap">
-        {accountOpen && <div className="desktop-account-menu"><button onClick={() => setAccountOpen(false)}><UserRound />View profile</button><button onClick={async () => { await signOut(); navigate("/auth"); }}><LogOut />Sign out</button></div>}
-        <button className="desktop-account" onClick={() => setAccountOpen((open) => !open)} aria-expanded={accountOpen}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <span className="account-initials">{displayName.slice(0,2).toUpperCase()}</span>}<span className="account-name"><strong>{displayName}</strong>{username && <small>@{username}</small>}</span><ChevronDown className={accountOpen ? "rotated" : ""} /></button>
+        <button className="desktop-account" onClick={() => navigate("/account")}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <span className="account-initials">{displayName.slice(0,2).toUpperCase()}</span>}<span className="account-name"><strong>{displayName}</strong>{username && <small>@{username}</small>}</span></button>
       </div>
     </aside>
     <div className="profile-desktop-layout">
     <div className="profile-shell">
-      <header className="profile-title"><span>Your space</span><h1>Profile</h1></header>
-
       <section className="profile-identity">
         <button type="button" className="profile-avatar-editor" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} aria-label="Upload profile photo">
           {avatarUrl ? <img src={avatarUrl} alt={`${displayName}'s profile`} /> : <span className="profile-initials">{displayName.slice(0, 2).toUpperCase()}</span>}

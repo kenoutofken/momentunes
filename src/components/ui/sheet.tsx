@@ -49,7 +49,9 @@ const sheetVariants = cva(
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
+    VariantProps<typeof sheetVariants> {
+  insetForHandle?: boolean;
+}
 
 type DragState = {
   pointerId: number;
@@ -59,7 +61,7 @@ type DragState = {
 };
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, ...props }, ref) => {
+  ({ side = "right", insetForHandle = true, className, children, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, ...props }, ref) => {
     const contentRef = React.useRef<React.ElementRef<typeof SheetPrimitive.Content> | null>(null);
     const closeRef = React.useRef<HTMLButtonElement | null>(null);
     const dragRef = React.useRef<DragState | null>(null);
@@ -153,8 +155,8 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
           ref={setRefs}
           className={cn(
             sheetVariants({ side }),
-            side === "right" && "[&>*:not([data-sheet-handle]):not([data-sheet-close])]:!pl-12",
-            side === "left" && "[&>*:not([data-sheet-handle]):not([data-sheet-close])]:!pr-12",
+            insetForHandle && side === "right" && "[&>*:not([data-sheet-handle]):not([data-sheet-close])]:!pl-12",
+            insetForHandle && side === "left" && "[&>*:not([data-sheet-handle]):not([data-sheet-close])]:!pr-12",
             className,
           )}
           onPointerDown={(event) => {

@@ -60,7 +60,7 @@ const MemoryDetail = () => {
       </header>
 
       <section className="detail-media-strip" aria-label="Memory media">
-        {memoryImages.map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => { setActiveImage(image); setImageOpen(true); }} aria-label={`View photo ${index + 1} full size`}><img src={image} alt="" /></button>)}
+        {memoryImages.map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => { setActiveImage(image); setImageOpen(true); }} aria-label={`View photo ${index + 1} full size`}><img src={image} alt="" style={{ objectPosition: `${memory.imageFocusPoints?.[index]?.x ?? 50}% ${memory.imageFocusPoints?.[index]?.y ?? 50}%` }} /></button>)}
       </section>
 
       <section className="detail-title"><span aria-hidden="true">“</span><h1>{memory.title}</h1></section>

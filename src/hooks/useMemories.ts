@@ -28,6 +28,7 @@ export function useMemories() {
     is_public: boolean | null;
     image_url: string | null;
     image_urls: string[] | null;
+    image_focus_points: Array<{ x: number; y: number }> | null;
     tags: string[] | null;
     created_at: string;
   }): Memory => ({
@@ -48,6 +49,7 @@ export function useMemories() {
     isPublic: r.is_public ?? false,
     imageUrl: r.image_url ?? null,
     imageUrls: r.image_urls?.length ? r.image_urls : r.image_url ? [r.image_url] : [],
+    imageFocusPoints: r.image_focus_points?.length ? r.image_focus_points : (r.image_urls?.length ? r.image_urls : r.image_url ? [r.image_url] : []).map(() => ({ x: 50, y: 50 })),
     tags: r.tags ?? [],
     createdAt: r.created_at,
   }), []);
@@ -122,6 +124,7 @@ export function useMemories() {
         is_public: memory.isPublic,
         image_url: memory.imageUrl ?? null,
         image_urls: memory.imageUrls ?? (memory.imageUrl ? [memory.imageUrl] : []),
+        image_focus_points: memory.imageFocusPoints ?? [],
         tags: memory.tags ?? [],
       })
       .select("*")
@@ -155,6 +158,7 @@ export function useMemories() {
       is_public: memory.isPublic,
       image_url: memory.imageUrl ?? null,
       image_urls: memory.imageUrls ?? (memory.imageUrl ? [memory.imageUrl] : []),
+      image_focus_points: memory.imageFocusPoints ?? [],
       tags: memory.tags ?? [],
     }).eq("id", id);
     if (error) {

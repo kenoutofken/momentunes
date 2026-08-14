@@ -8,14 +8,16 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { compressImage } from "@/lib/compressImage";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { seasonFromDate, yearFromDate } from "@/lib/memoryTime";
 import type { Memory } from "@/types/memory";
+import { format } from "date-fns";
 
 type QuickMemory = {
   title: string; description: string; songTitle: string; artist: string; date: string;
   memoryYear?: number | null; memorySeason?: string | null; locationName?: string | null;
   locationLat?: number | null; locationLng?: number | null; locationPlaceId?: string | null;
-  mood: string; people: string[]; isPublic: boolean; imageUrl?: string | null; imageUrls?: string[]; tags?: string[];
+  mood: string; people: string[]; isPublic: boolean; imageUrl?: string | null; imageUrls?: string[]; imageFocusPoints?: Array<{ x: number; y: number }>; tags?: string[];
 };
 
 type QuickAddMemorySheetProps = { open: boolean; onOpenChange: (open: boolean) => void; onAdd: (memory: QuickMemory) => Promise<boolean>; editingMemory?: Memory | null };
@@ -28,7 +30,9 @@ const pickerMapStyle = (apiKey?: string): MapStyle => ({
 
 const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: QuickAddMemorySheetProps) => {
   const { user } = useAuth();
+  const isMobile = useIsMobile(900);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const pickerMapRef = useRef<MapRef | null>(null);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -36,6 +40,8 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
   const [artist, setArtist] = useState("");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imageFocusPoints, setImageFocusPoints] = useState<Array<{ x: number; y: number }>>([]);
+  const [adjustingPhoto, setAdjustingPhoto] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [location, setLocation] = useState<LocationResult | null>(null);
   const [locationBeforePicking, setLocationBeforePicking] = useState<LocationResult | null>(null);
@@ -44,6 +50,15 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
   const [pickerCenter, setPickerCenter] = useState({ lat: 40.7, lng: -73.92 });
   const [pickerSearch, setPickerSearch] = useState("");
   const mapStyle = useMemo(() => pickerMapStyle(import.meta.env.VITE_GEOAPIFY_API_KEY), []);
+  const today = new Date().toISOString().slice(0, 10);
+  const dateLabel = date === today ? "Today" : format(new Date(`${date}T12:00:00`), "MMMM d, yyyy");
+
+  const openDatePicker = () => {
+    const input = dateInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") input.showPicker();
+    else input.click();
+  };
 
   useEffect(() => () => { imagePreviews.filter((url) => url.startsWith("blob:")).forEach(URL.revokeObjectURL); }, [imagePreviews]);
 
@@ -55,6 +70,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
     setArtist(editingMemory.artist);
     setImageFiles([]);
     setImagePreviews(editingMemory.imageUrls?.length ? editingMemory.imageUrls : editingMemory.imageUrl ? [editingMemory.imageUrl] : []);
+    setImageFocusPoints(editingMemory.imageFocusPoints?.length ? editingMemory.imageFocusPoints : (editingMemory.imageUrls?.length ? editingMemory.imageUrls : editingMemory.imageUrl ? [editingMemory.imageUrl] : []).map(() => ({ x: 50, y: 50 })));
     setLocation(
       editingMemory.locationName && typeof editingMemory.locationLat === "number" && typeof editingMemory.locationLng === "number"
         ? { name: editingMemory.locationName, lat: editingMemory.locationLat, lng: editingMemory.locationLng, placeId: editingMemory.locationPlaceId ?? null }
@@ -64,7 +80,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
 
   const reset = () => {
     setTitle(""); setDate(new Date().toISOString().slice(0, 10)); setLocation(null);
-    setSongTitle(""); setArtist(""); setImageFiles([]); setImagePreviews([]);
+    setSongTitle(""); setArtist(""); setImageFiles([]); setImagePreviews([]); setImageFocusPoints([]); setAdjustingPhoto(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -101,6 +117,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
     if (chosen.length > room) toast.info("You can attach up to 8 photos");
     setImageFiles((current) => [...current, ...accepted]);
     setImagePreviews((current) => [...current, ...accepted.map(URL.createObjectURL)]);
+    setImageFocusPoints((current) => [...current, ...accepted.map(() => ({ x: 50, y: 50 }))]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -129,7 +146,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
         title: title.trim(), description: editingMemory?.description ?? "", songTitle: songTitle.trim(), artist: artist.trim(), date,
         memoryYear: yearFromDate(date), memorySeason: seasonFromDate(date), locationName: location.name,
         locationLat: location.lat, locationLng: location.lng, locationPlaceId: location.placeId,
-        mood: editingMemory?.mood || "🎵 Soundtracked", people: editingMemory?.people ?? [], isPublic: editingMemory?.isPublic ?? false, imageUrl: imageUrls[0] ?? null, imageUrls, tags: editingMemory?.tags ?? [],
+        mood: editingMemory?.mood || "🎵 Soundtracked", people: editingMemory?.people ?? [], isPublic: editingMemory?.isPublic ?? false, imageUrl: imageUrls[0] ?? null, imageUrls, imageFocusPoints: imageUrls.map((_, index) => imageFocusPoints[index] ?? { x: 50, y: 50 }), tags: editingMemory?.tags ?? [],
       });
       if (saved) { reset(); onOpenChange(false); }
     } catch (error) {
@@ -138,8 +155,8 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
   };
 
   return <Sheet open={open} onOpenChange={(next) => { if (!saving) onOpenChange(next); }}>
-    <SheetContent side="bottom" className={`quick-memory-sheet ${pickingLocation ? "is-picking-location" : ""}`}>
-      <SheetHeader className="sr-only"><SheetTitle>Add memory</SheetTitle></SheetHeader>
+    <SheetContent side={isMobile ? "bottom" : "right"} insetForHandle={false} className={`quick-memory-sheet ${pickingLocation ? "is-picking-location" : ""}`}>
+      <SheetHeader className={isMobile || pickingLocation ? "sr-only" : "quick-memory-heading"}><SheetTitle>{editingMemory ? "Edit memory" : "Add memory"}</SheetTitle></SheetHeader>
       {pickingLocation ? <div className="embedded-location-picker">
         <Map ref={pickerMapRef} initialViewState={{ longitude: pickerCenter.lng, latitude: pickerCenter.lat, zoom: 11 }} mapStyle={mapStyle} dragRotate={false} touchPitch={false} attributionControl={false} onMove={() => setResolvingLocation(true)} onMoveEnd={() => { const center = pickerMapRef.current?.getCenter(); if (!center) return; setPickerCenter({ lat: center.lat, lng: center.lng }); resolveLocation(center.lat, center.lng); }} style={{ position: "absolute", inset: 0 }} />
         <div className="embedded-picker-search">
@@ -166,14 +183,22 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
           className={`quick-picker-field quick-location-picker ${location ? "has-value" : ""}`}
           onClick={startPickingLocation}
         ><MapPin /><span>{location?.name || "Drop a pin on the map"}</span><ChevronRight /></button>
-        <label className="quick-picker-field"><CalendarDays /><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><ChevronRight /></label>
-        <div className={`quick-photo-field ${imagePreviews.length ? "has-images" : ""}`}>
-          {imagePreviews.length ? <div className="quick-photo-grid">{imagePreviews.map((preview, index) => <div key={preview}><img src={preview} alt={`Selected memory ${index + 1}`} /><button type="button" onClick={() => { setImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index)); const blobIndex = imagePreviews.slice(0, index + 1).filter((url) => url.startsWith("blob:")).length - 1; if (preview.startsWith("blob:")) setImageFiles((current) => current.filter((_, itemIndex) => itemIndex !== blobIndex)); }}><X /></button></div>)}</div> : <><ImagePlus /><strong>Add photos</strong><small>Choose up to 8 moments from your library</small></>}
-          {imagePreviews.length < 8 && <button type="button" className="quick-add-another-photo" onClick={() => fileInputRef.current?.click()}><ImagePlus />{imagePreviews.length ? "Add another" : "Choose photos"}</button>}
+        <button type="button" className="quick-picker-field quick-date-picker" onClick={openDatePicker}><CalendarDays /><span>{dateLabel}</span><ChevronRight /><input ref={dateInputRef} type="date" value={date} onChange={(event) => setDate(event.target.value)} tabIndex={-1} aria-label="Memory date" /></button>
+        <div className={`quick-photo-field ${imagePreviews.length ? "has-images" : ""}`} role="button" tabIndex={0} onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) fileInputRef.current?.click(); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); fileInputRef.current?.click(); } }}>
+          {imagePreviews.length ? <div className="quick-photo-grid">{imagePreviews.map((preview, index) => <div key={preview}><img src={preview} alt={`Selected memory ${index + 1}`} style={{ objectPosition: `${imageFocusPoints[index]?.x ?? 50}% ${imageFocusPoints[index]?.y ?? 50}%` }} /><button type="button" className="quick-remove-photo" aria-label={`Remove photo ${index + 1}`} onClick={() => { setImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index)); setImageFocusPoints((current) => current.filter((_, itemIndex) => itemIndex !== index)); const blobIndex = imagePreviews.slice(0, index + 1).filter((url) => url.startsWith("blob:")).length - 1; if (preview.startsWith("blob:")) setImageFiles((current) => current.filter((_, itemIndex) => itemIndex !== blobIndex)); }}><X /></button><button type="button" className="quick-adjust-photo" onClick={() => setAdjustingPhoto(index)}>Adjust</button></div>)}</div> : <><ImagePlus /><strong>Add photos</strong><small>Choose up to 8 moments from your library</small></>}
+          {imagePreviews.length > 0 && imagePreviews.length < 8 && <button type="button" className="quick-add-another-photo" onClick={() => fileInputRef.current?.click()}>Add another photo</button>}
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(event) => chooseImages(event.target.files)} />
         <div className="quick-song-field"><Music2 /><SongSearch songTitle={songTitle} artist={artist} onSelect={(song, songArtist) => { setSongTitle(song); setArtist(songArtist); }} onSongTitleChange={setSongTitle} onArtistChange={setArtist} /></div>
         <button type="button" className="quick-save-memory" onClick={save} disabled={saving}>{saving ? <><Loader2 className="animate-spin" />Saving…</> : editingMemory ? "Save changes" : "Add memory"}</button>
+      </div>}
+      {adjustingPhoto !== null && imagePreviews[adjustingPhoto] && <div className="photo-focus-editor" onClick={(event) => event.stopPropagation()}>
+        <div className="photo-focus-toolbar"><div><strong>Adjust cover</strong><span>Drag to choose the focal point</span></div><button type="button" onClick={() => setAdjustingPhoto(null)}><X /></button></div>
+        <div className="photo-focus-frame" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); const update = (clientX: number, clientY: number) => { const rect = event.currentTarget.getBoundingClientRect(); const point = { x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)), y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)) }; setImageFocusPoints((current) => current.map((item, index) => index === adjustingPhoto ? point : item)); }; update(event.clientX, event.clientY); event.currentTarget.onpointermove = (moveEvent) => update(moveEvent.clientX, moveEvent.clientY); event.currentTarget.onpointerup = () => { event.currentTarget.onpointermove = null; event.currentTarget.onpointerup = null; }; }}>
+          <img src={imagePreviews[adjustingPhoto]} alt="Cover position preview" style={{ objectPosition: `${imageFocusPoints[adjustingPhoto]?.x ?? 50}% ${imageFocusPoints[adjustingPhoto]?.y ?? 50}%` }} draggable={false} />
+          <span className="photo-focus-target" style={{ left: `${imageFocusPoints[adjustingPhoto]?.x ?? 50}%`, top: `${imageFocusPoints[adjustingPhoto]?.y ?? 50}%` }} />
+        </div>
+        <div className="photo-focus-actions"><button type="button" onClick={() => setImageFocusPoints((current) => current.map((item, index) => index === adjustingPhoto ? { x: 50, y: 50 } : item))}>Reset</button><button type="button" className="confirm" onClick={() => setAdjustingPhoto(null)}>Done</button></div>
       </div>}
     </SheetContent>
   </Sheet>;

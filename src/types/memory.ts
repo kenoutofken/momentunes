@@ -16,6 +16,7 @@ export interface Memory {
   isPublic: boolean;
   imageUrl?: string | null;
   imageUrls?: string[];
+  imageFocusPoints?: Array<{ x: number; y: number }>;
   tags: string[];
   createdAt: string;
   userId?: string;
