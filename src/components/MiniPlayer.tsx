@@ -250,7 +250,7 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
         <button
           type="button"
           onClick={handleTogglePlay}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/20 transition-all hover:scale-110 hover:bg-primary/90 hover:shadow-md hover:ring-primary/45 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/20 transition-all hover:scale-110 hover:bg-primary/90 hover:shadow-md hover:ring-primary/45 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label={playing ? "Pause preview" : "Play preview"}
         >
           {playing ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
@@ -301,7 +301,7 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
             type="button"
             onClick={handleToggleMuted}
             className={cn(
-              "rounded-full p-1.5 transition-all hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2",
+              "flex h-11 w-11 items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2",
               isOverlay
                 ? "text-white/70 hover:bg-white/15 hover:text-white focus-visible:ring-white/70"
                 : "text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm focus-visible:ring-ring"
@@ -314,7 +314,7 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
             type="button"
             onClick={handleTogglePlay}
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2",
+              "flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2",
               isOverlay
                 ? "bg-white text-black ring-1 ring-white/40 hover:bg-white/90 hover:ring-white/70 focus-visible:ring-white/70"
                 : "bg-primary text-primary-foreground ring-1 ring-primary/20 hover:bg-primary/90 hover:ring-primary/45 focus-visible:ring-ring"

@@ -217,7 +217,7 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
             data-sheet-close
             ref={closeRef}
             onPointerDown={(event) => event.stopPropagation()}
-            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-foreground/70 bg-white text-foreground shadow-sm transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+            className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-foreground/70 bg-white text-foreground shadow-sm transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
           >
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>

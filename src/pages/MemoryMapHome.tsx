@@ -349,7 +349,10 @@ const MemoryMapHome = () => {
             <img src={selectedMemory.imageUrl || "/landing/landing_02.png"} alt="" className="memory-cover" style={{ objectPosition: `${selectedMemory.imageFocusPoints?.[0]?.x ?? 50}% ${selectedMemory.imageFocusPoints?.[0]?.y ?? 50}%` }} />
             <div className="memory-story">
               <div className="memory-title-row"><span className="memory-brand-quote" aria-hidden="true">“</span><h1>{selectedMemory.title}</h1></div>
-              <p className="memory-meta">{selectedMemory.locationName || "Somewhere special"} <span>·</span> {format(new Date(`${selectedMemory.date}T12:00:00`), "MMM d, yyyy")}</p>
+              <div className="memory-meta">
+                <p className="memory-location" title={selectedMemory.locationName || "Somewhere special"}>{selectedMemory.locationName || "Somewhere special"}</p>
+                <time dateTime={selectedMemory.date}>{format(new Date(`${selectedMemory.date}T12:00:00`), "MMM d, yyyy")}</time>
+              </div>
               <div onClick={(event) => event.stopPropagation()}><MiniPlayer key={`${selectedMemory.id}:${selectedMemory.songTitle}:${selectedMemory.artist}`} songTitle={selectedMemory.songTitle} artist={selectedMemory.artist} variant="map" /></div>
             </div>
             {sharedLocationMemories.length > 1 && sharedLocationIndex > 0 && (() => {

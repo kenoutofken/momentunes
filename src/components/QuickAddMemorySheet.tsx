@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, { type MapRef, type MapStyle } from "react-map-gl/maplibre";
 import { CalendarDays, ChevronRight, ImagePlus, Loader2, MapPin, Music2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -34,6 +34,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const pickerMapRef = useRef<MapRef | null>(null);
+  const requestedDeviceLocationRef = useRef(false);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [songTitle, setSongTitle] = useState("");
@@ -46,12 +47,16 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
   const [location, setLocation] = useState<LocationResult | null>(null);
   const [locationBeforePicking, setLocationBeforePicking] = useState<LocationResult | null>(null);
   const [pickingLocation, setPickingLocation] = useState(false);
+  const [locatingDevice, setLocatingDevice] = useState(false);
   const [resolvingLocation, setResolvingLocation] = useState(false);
   const [pickerCenter, setPickerCenter] = useState({ lat: 40.7, lng: -73.92 });
   const [pickerSearch, setPickerSearch] = useState("");
   const mapStyle = useMemo(() => pickerMapStyle(import.meta.env.VITE_GEOAPIFY_API_KEY), []);
   const today = new Date().toISOString().slice(0, 10);
   const dateLabel = date === today ? "Today" : format(new Date(`${date}T12:00:00`), "MMMM d, yyyy");
+  const hasRequiredFields = Boolean(
+    title.trim() && location && date && songTitle.trim() && artist.trim(),
+  );
 
   const openDatePicker = () => {
     const input = dateInputRef.current;
@@ -84,7 +89,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const resolveLocation = async (lat: number, lng: number) => {
+  const resolveLocation = useCallback(async (lat: number, lng: number) => {
     setResolvingLocation(true);
     try {
       const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY;
@@ -98,7 +103,32 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
       console.error(error);
       setLocation({ name: "Pinned location", lat, lng, placeId: null });
     } finally { setResolvingLocation(false); }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      requestedDeviceLocationRef.current = false;
+      setLocatingDevice(false);
+      return;
+    }
+    if (editingMemory || location || requestedDeviceLocationRef.current || !navigator.geolocation) return;
+
+    requestedDeviceLocationRef.current = true;
+    let cancelled = false;
+    setLocatingDevice(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        if (cancelled) return;
+        const currentPosition = { lat: coords.latitude, lng: coords.longitude };
+        setLocatingDevice(false);
+        setPickerCenter(currentPosition);
+        void resolveLocation(currentPosition.lat, currentPosition.lng);
+      },
+      () => { if (!cancelled) setLocatingDevice(false); },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 },
+    );
+    return () => { cancelled = true; };
+  }, [editingMemory, location, open, resolveLocation]);
 
   const startPickingLocation = () => {
     const center = location ? { lat: location.lat, lng: location.lng } : pickerCenter;
@@ -182,7 +212,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
           type="button"
           className={`quick-picker-field quick-location-picker ${location ? "has-value" : ""}`}
           onClick={startPickingLocation}
-        ><MapPin /><span>{location?.name || "Drop a pin on the map"}</span><ChevronRight /></button>
+        >{locatingDevice || resolvingLocation ? <Loader2 className="animate-spin" /> : <MapPin />}<span>{location?.name || (locatingDevice ? "Getting your current location…" : resolvingLocation ? "Finding this place…" : "Drop a pin on the map")}</span><ChevronRight /></button>
         <button type="button" className="quick-picker-field quick-date-picker" onClick={openDatePicker}><CalendarDays /><span>{dateLabel}</span><ChevronRight /><input ref={dateInputRef} type="date" value={date} onChange={(event) => setDate(event.target.value)} tabIndex={-1} aria-label="Memory date" /></button>
         <div className={`quick-photo-field ${imagePreviews.length ? "has-images" : ""}`} role="button" tabIndex={0} onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) fileInputRef.current?.click(); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); fileInputRef.current?.click(); } }}>
           {imagePreviews.length ? <div className="quick-photo-grid">{imagePreviews.map((preview, index) => <div key={preview}><img src={preview} alt={`Selected memory ${index + 1}`} style={{ objectPosition: `${imageFocusPoints[index]?.x ?? 50}% ${imageFocusPoints[index]?.y ?? 50}%` }} /><button type="button" className="quick-remove-photo" aria-label={`Remove photo ${index + 1}`} onClick={() => { setImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index)); setImageFocusPoints((current) => current.filter((_, itemIndex) => itemIndex !== index)); const blobIndex = imagePreviews.slice(0, index + 1).filter((url) => url.startsWith("blob:")).length - 1; if (preview.startsWith("blob:")) setImageFiles((current) => current.filter((_, itemIndex) => itemIndex !== blobIndex)); }}><X /></button><button type="button" className="quick-adjust-photo" onClick={() => setAdjustingPhoto(index)}>Adjust</button></div>)}</div> : <><ImagePlus /><strong>Add photos</strong><small>Choose up to 8 moments from your library</small></>}
@@ -190,7 +220,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(event) => chooseImages(event.target.files)} />
         <div className="quick-song-field"><Music2 /><SongSearch songTitle={songTitle} artist={artist} onSelect={(song, songArtist) => { setSongTitle(song); setArtist(songArtist); }} onSongTitleChange={setSongTitle} onArtistChange={setArtist} /></div>
-        <button type="button" className="quick-save-memory" onClick={save} disabled={saving}>{saving ? <><Loader2 className="animate-spin" />Saving…</> : editingMemory ? "Save changes" : "Add memory"}</button>
+        <button type="button" className="quick-save-memory" onClick={save} disabled={saving || !hasRequiredFields} aria-disabled={saving || !hasRequiredFields}>{saving ? <><Loader2 className="animate-spin" />Saving…</> : editingMemory ? "Save changes" : "Add memory"}</button>
       </div>}
       {adjustingPhoto !== null && imagePreviews[adjustingPhoto] && <div className="photo-focus-editor" onClick={(event) => event.stopPropagation()}>
         <div className="photo-focus-toolbar"><div><strong>Adjust cover</strong><span>Drag to choose the focal point</span></div><button type="button" onClick={() => setAdjustingPhoto(null)}><X /></button></div>
