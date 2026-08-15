@@ -230,6 +230,12 @@ body {
   .now-playing-memory.has-location-collection { width: calc(100vw - 72px); height: min(430px,calc(100dvh - 190px)); min-height: 390px; }
   .memory-map-home > .memory-carousel-arrows { bottom: calc(118px + min(430px,calc(100dvh - 190px)) + env(safe-area-inset-bottom)); }
   .next-memory-card-peek, .previous-memory-card-peek { display: flex; padding: 0; flex-direction: column; }.next-memory-card-peek > img, .previous-memory-card-peek > img { width: 100%; height: 190px; border-radius: 0; object-fit: cover; }.next-memory-card-peek > span, .previous-memory-card-peek > span { width: 100%; padding: 18px 20px; }
+  .now-playing-memory > .memory-carousel-arrows { position: absolute; z-index: 7; top: 12px; right: 12px; bottom: auto; left: auto; display: grid; height: 44px; grid-template-columns: 44px auto 44px; align-items: center; gap: 0; padding: 0 3px; transform: none; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: rgba(17,17,17,.64); box-shadow: 0 6px 18px rgba(0,0,0,.2); backdrop-filter: blur(12px); }
+  .now-playing-memory > .memory-carousel-arrows button { display: grid; width: 44px; height: 44px; min-width: 44px; min-height: 44px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: white; box-shadow: none; }
+  .now-playing-memory > .memory-carousel-arrows button:not(:disabled):hover { background: rgba(255,255,255,.16); }
+  .now-playing-memory > .memory-carousel-arrows button:disabled { cursor: default; opacity: .35; }
+  .now-playing-memory > .memory-carousel-arrows button svg { width: 19px; }
+  .now-playing-memory > .memory-carousel-arrows span { padding: 0 5px; background: transparent; color: white; box-shadow: none; font-size: 11px; font-weight: 700; white-space: nowrap; }
 }
 
 /* Keep phone cards compact. This follows the tablet rules so the broader
@@ -301,9 +307,6 @@ body {
   .now-playing-memory.has-location-collection > .memory-story {
     border-radius: 0 0 24px 24px;
     background: rgba(255,255,255,.96);
-  }
-  .memory-map-home > .memory-carousel-arrows {
-    bottom: calc(462px + env(safe-area-inset-bottom));
   }
   .next-memory-card-peek,
   .previous-memory-card-peek {

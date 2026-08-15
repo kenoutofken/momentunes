@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import MiniPlayer from "@/components/MiniPlayer";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Supercluster from "supercluster";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
@@ -18,7 +18,18 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 const DEFAULT_CENTER = { longitude: -73.92, latitude: 40.7, zoom: 9.25 };
 type MemoryClusterProperties = { memoryId?: string };
+type MobileCardMotion = { direction: -1 | 0 | 1; isCollection: boolean };
 const FAVORITES_KEY = "momentunes:favorite-memories";
+
+const mobileCardVariants = {
+  initial: ({ direction, isCollection }: MobileCardMotion) => direction === 0
+    ? { opacity: 0, y: 24, x: isCollection ? 0 : "-50%" }
+    : { opacity: 1, y: 0, x: direction > 0 ? "105%" : "-105%" },
+  animate: ({ isCollection }: MobileCardMotion) => ({ opacity: 1, y: 0, x: isCollection ? 0 : "-50%" }),
+  exit: ({ direction, isCollection }: MobileCardMotion) => direction === 0
+    ? { opacity: 0, y: 20, x: isCollection ? 0 : "-50%" }
+    : { opacity: 1, y: 0, x: direction > 0 ? "-105%" : "105%" },
+};
 
 const fallbackMemory: Memory = {
   id: "preview-memory",
@@ -66,6 +77,7 @@ const MemoryMapHome = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isMobile = useIsMobile(900);
+  const prefersReducedMotion = useReducedMotion();
   const { user } = useAuth();
   const { profile: currentProfile } = useCurrentProfile();
   const mapRef = useRef<MapRef | null>(null);
@@ -86,6 +98,7 @@ const MemoryMapHome = () => {
     try { return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]")); } catch { return new Set(); }
   });
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(Boolean(requestedMemoryId));
+  const [cardDirection, setCardDirection] = useState<-1 | 0 | 1>(0);
   const [inspectorMenuOpen, setInspectorMenuOpen] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -168,6 +181,7 @@ const MemoryMapHome = () => {
   }, [isMobile, mapLoaded, selectedLatitude, selectedLongitude, selectedMemoryId]);
 
   const selectMemory = (memory: Memory) => {
+    setCardDirection(0);
     setSelectedId(memory.id);
     const memoriesAtLocation = displayMemories.filter((item) => Math.abs(item.locationLat! - memory.locationLat!) < 0.000001 && Math.abs(item.locationLng! - memory.locationLng!) < 0.000001);
     setActiveCollectionIds(memoriesAtLocation.map((item) => item.id));
@@ -179,6 +193,7 @@ const MemoryMapHome = () => {
     if (sharedLocationMemories.length < 2 || sharedLocationIndex < 0) return;
     const nextIndex = sharedLocationIndex + direction;
     if (nextIndex < 0 || nextIndex >= sharedLocationMemories.length) return;
+    setCardDirection(direction < 0 ? -1 : 1);
     setSelectedId(sharedLocationMemories[nextIndex].id);
   };
 
@@ -319,21 +334,17 @@ const MemoryMapHome = () => {
         </div>}
       </div>}
 
-      {isMobile && selectedMemory && memoryPanelOpen && sharedLocationMemories.length > 1 && <div className="memory-carousel-arrows" onClick={(event) => event.stopPropagation()}>
-        <button disabled={sharedLocationIndex === 0} onClick={() => selectAdjacentLocationMemory(-1)} aria-label="Previous memory"><ChevronLeft /></button>
-        <span>{sharedLocationIndex + 1} of {sharedLocationMemories.length}</span>
-        <button disabled={sharedLocationIndex === sharedLocationMemories.length - 1} onClick={() => selectAdjacentLocationMemory(1)} aria-label="Next memory"><ChevronRight /></button>
-      </div>}
-
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="sync" custom={{ direction: cardDirection, isCollection: sharedLocationMemories.length > 1 }}>
       {!loading && selectedMemory && memoryPanelOpen && (
         <motion.article
           key={`${isMobile ? "mobile" : "desktop"}-${selectedMemory.id}`}
           className={`now-playing-memory ${isMobile && sharedLocationMemories.length > 1 ? `has-location-collection ${sharedLocationIndex === 0 ? "collection-first" : sharedLocationIndex === sharedLocationMemories.length - 1 ? "collection-last" : "collection-middle"}` : ""}`}
-          initial={isMobile ? { opacity: 0, y: 24, x: sharedLocationMemories.length > 1 ? 0 : "-50%" } : { opacity: 0, x: 28, scale: 0.985 }}
-          animate={isMobile ? { opacity: 1, y: 0, x: sharedLocationMemories.length > 1 ? 0 : "-50%" } : { opacity: 1, x: 0, scale: 1 }}
-          exit={isMobile ? { opacity: 0, y: 20, x: sharedLocationMemories.length > 1 ? 0 : "-50%" } : { opacity: 0, x: 24, scale: 0.99 }}
-          transition={{ duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
+          custom={{ direction: cardDirection, isCollection: sharedLocationMemories.length > 1 }}
+          variants={isMobile ? mobileCardVariants : undefined}
+          initial={isMobile ? "initial" : { opacity: 0, x: 28, scale: 0.985 }}
+          animate={isMobile ? "animate" : { opacity: 1, x: 0, scale: 1 }}
+          exit={isMobile ? "exit" : { opacity: 0, x: 24, scale: 0.99 }}
+          transition={{ duration: prefersReducedMotion ? 0 : isMobile ? 0.28 : 0.32, ease: [0.4, 0, 0.2, 1] }}
           onClick={() => isMobile && selectedMemory.id !== fallbackMemory.id && navigate(`/journal/memories/${selectedMemory.id}`)}
           onTouchStart={(event) => { cardTouchStartX.current = event.touches[0]?.clientX ?? null; }}
           onTouchEnd={(event) => {
@@ -347,6 +358,11 @@ const MemoryMapHome = () => {
         >
           {isMobile ? <>
             <img src={selectedMemory.imageUrl || "/landing/landing_02.png"} alt="" className="memory-cover" style={{ objectPosition: `${selectedMemory.imageFocusPoints?.[0]?.x ?? 50}% ${selectedMemory.imageFocusPoints?.[0]?.y ?? 50}%` }} />
+            {sharedLocationMemories.length > 1 && <div className="memory-carousel-arrows" onClick={(event) => event.stopPropagation()}>
+              <button disabled={sharedLocationIndex === 0} onClick={() => selectAdjacentLocationMemory(-1)} aria-label="Previous memory"><ChevronLeft /></button>
+              <span aria-live="polite" aria-atomic="true">{sharedLocationIndex + 1} of {sharedLocationMemories.length}</span>
+              <button disabled={sharedLocationIndex === sharedLocationMemories.length - 1} onClick={() => selectAdjacentLocationMemory(1)} aria-label="Next memory"><ChevronRight /></button>
+            </div>}
             <div className="memory-story">
               <div className="memory-title-row"><span className="memory-brand-quote" aria-hidden="true">“</span><h1>{selectedMemory.title}</h1></div>
               <div className="memory-meta">
