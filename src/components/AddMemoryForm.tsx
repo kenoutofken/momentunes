@@ -3,6 +3,7 @@ import { MOODS, MEMORY_SEASONS, MEMORY_TYPES } from "@/types/memory";
 import { Music, X, Users, Plus, Globe, Lock, ImagePlus, Loader2, Sparkles, MapPin, CircleHelp, Upload } from "lucide-react";
 import SongSearch from "@/components/SongSearch";
 import { compressImage } from "@/lib/compressImage";
+import { canDecodeImage, imageFileError, SUPPORTED_IMAGE_ACCEPT } from "@/lib/imageFileValidation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { dateFromYearSeason, seasonFromDate, yearFromDate } from "@/lib/memoryTime";
@@ -247,13 +248,12 @@ const AddMemoryForm = ({ onAdd, onClose, editingMemory }: AddMemoryFormProps) =>
     }
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
-      return;
-    }
+    const formatError = imageFileError(file);
+    if (formatError) { toast.error(formatError); e.target.value = ""; return; }
+    if (!(await canDecodeImage(file))) { toast.error(`“${file.name}” could not be read. Try exporting it as JPEG.`); e.target.value = ""; return; }
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
   };
@@ -899,8 +899,8 @@ const AddMemoryForm = ({ onAdd, onClose, editingMemory }: AddMemoryFormProps) =>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".jpg,.jpeg,.png,.webp"
-              onChange={handleImageSelect}
+              accept={SUPPORTED_IMAGE_ACCEPT}
+              onChange={(event) => void handleImageSelect(event)}
               className="hidden"
             />
           </div>

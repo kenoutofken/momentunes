@@ -6,6 +6,7 @@ import LocationSearch, { type LocationResult } from "@/components/LocationSearch
 import SongSearch from "@/components/SongSearch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { compressImage } from "@/lib/compressImage";
+import { canDecodeImage, imageFileError, SUPPORTED_IMAGE_ACCEPT } from "@/lib/imageFileValidation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -145,12 +146,19 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
     window.setTimeout(() => { pickerMapRef.current?.resize(); pickerMapRef.current?.jumpTo({ center: [center.lng, center.lat], zoom: 11 }); resolveLocation(center.lat, center.lng); }, 50);
   };
 
-  const chooseImages = (files?: FileList | null) => {
-    const chosen = Array.from(files ?? []).filter((file) => file.type.startsWith("image/"));
-    if (!chosen.length) { toast.error("Choose image files"); return; }
+  const chooseImages = async (files?: FileList | null) => {
+    const chosen = Array.from(files ?? []);
+    if (!chosen.length) return;
     const room = Math.max(0, 8 - imagePreviews.length);
-    const accepted = chosen.slice(0, room);
+    const accepted: File[] = [];
+    for (const file of chosen.slice(0, room)) {
+      const formatError = imageFileError(file);
+      if (formatError) { toast.error(formatError); continue; }
+      if (!(await canDecodeImage(file))) { toast.error(`“${file.name}” could not be read. Try exporting it as JPEG.`); continue; }
+      accepted.push(file);
+    }
     if (chosen.length > room) toast.info("You can attach up to 8 photos");
+    if (!accepted.length) { if (fileInputRef.current) fileInputRef.current.value = ""; return; }
     setImageFiles((current) => [...current, ...accepted]);
     setImagePreviews((current) => [...current, ...accepted.map(URL.createObjectURL)]);
     setImageFocusPoints((current) => [...current, ...accepted.map(() => ({ x: 50, y: 50 }))]);
@@ -224,7 +232,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
           {imagePreviews.length ? <div className="quick-photo-grid">{imagePreviews.map((preview, index) => <div key={preview}><img src={preview} alt={`Selected memory ${index + 1}`} style={{ objectPosition: `${imageFocusPoints[index]?.x ?? 50}% ${imageFocusPoints[index]?.y ?? 50}%` }} /><button type="button" className="quick-remove-photo" aria-label={`Remove photo ${index + 1}`} onClick={() => { setImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index)); setImageFocusPoints((current) => current.filter((_, itemIndex) => itemIndex !== index)); const blobIndex = imagePreviews.slice(0, index + 1).filter((url) => url.startsWith("blob:")).length - 1; if (preview.startsWith("blob:")) setImageFiles((current) => current.filter((_, itemIndex) => itemIndex !== blobIndex)); }}><X /></button><button type="button" className="quick-adjust-photo" onClick={() => setAdjustingPhoto(index)}>Adjust</button></div>)}</div> : <><ImagePlus /><strong>Add photos</strong><small>Choose up to 8 moments from your library</small></>}
           {imagePreviews.length > 0 && imagePreviews.length < 8 && <button type="button" className="quick-add-another-photo" onClick={() => fileInputRef.current?.click()}>Add another photo</button>}
         </div>
-        <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(event) => chooseImages(event.target.files)} />
+        <input ref={fileInputRef} type="file" accept={SUPPORTED_IMAGE_ACCEPT} multiple hidden onChange={(event) => void chooseImages(event.target.files)} />
         <div className="quick-song-field"><Music2 /><SongSearch songTitle={songTitle} artist={artist} onSelect={(song, songArtist) => { setSongTitle(song); setArtist(songArtist); }} onSongTitleChange={setSongTitle} onArtistChange={setArtist} /></div>
         <button type="button" className="quick-save-memory" onClick={save} disabled={saving || !hasRequiredFields} aria-disabled={saving || !hasRequiredFields}>{saving ? <><Loader2 className="animate-spin" />Saving…</> : editingMemory ? "Save changes" : "Add memory"}</button>
       </div>}

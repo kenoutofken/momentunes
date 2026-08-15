@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Map, { Marker, type MapStyle } from "react-map-gl/maplibre";
-import { ArrowLeft, CalendarDays, ChevronRight, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserRound } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -25,13 +25,33 @@ const MemoryDetail = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editing, setEditing] = useState<Memory | null>(null);
   const [imageOpen, setImageOpen] = useState(false);
-  const [activeImage, setActiveImage] = useState<string | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const memory = memories.find((item) => item.id === id);
   const mapStyle = useMemo(() => detailMapStyle(import.meta.env.VITE_GEOAPIFY_API_KEY), []);
   const hasLocation = typeof memory?.locationLat === "number" && typeof memory?.locationLng === "number";
   const memoryImages = memory ? memory.imageUrls?.length ? memory.imageUrls : [memory.imageUrl || "/landing/landing_02.png"] : [];
 
+  const showImage = (index: number) => {
+    setActiveImageIndex(index);
+    setImageOpen(true);
+  };
+
+  const moveImage = (direction: -1 | 1) => {
+    setActiveImageIndex((current) => (current + direction + memoryImages.length) % memoryImages.length);
+  };
+
   useEffect(() => window.scrollTo(0, 0), []);
+
+  useEffect(() => {
+    if (!imageOpen || memoryImages.length < 2) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") setActiveImageIndex((current) => (current - 1 + memoryImages.length) % memoryImages.length);
+      if (event.key === "ArrowRight") setActiveImageIndex((current) => (current + 1) % memoryImages.length);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [imageOpen, memoryImages.length]);
 
   const shareMemory = async () => {
     if (!memory) return;
@@ -59,8 +79,8 @@ const MemoryDetail = () => {
         </div>
       </header>
 
-      <section className="detail-media-strip" aria-label="Memory media">
-        {memoryImages.map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => { setActiveImage(image); setImageOpen(true); }} aria-label={`View photo ${index + 1} full size`}><img src={image} alt="" style={{ objectPosition: `${memory.imageFocusPoints?.[index]?.x ?? 50}% ${memory.imageFocusPoints?.[index]?.y ?? 50}%` }} /></button>)}
+      <section className={`detail-media-grid detail-media-grid-${Math.min(memoryImages.length, 4)}`} aria-label={`${memoryImages.length} memory ${memoryImages.length === 1 ? "photo" : "photos"}`}>
+        {memoryImages.slice(0, 4).map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => showImage(index)} aria-label={`View photo ${index + 1} of ${memoryImages.length} full size`}><img src={image} alt="" style={{ objectPosition: `${memory.imageFocusPoints?.[index]?.x ?? 50}% ${memory.imageFocusPoints?.[index]?.y ?? 50}%` }} />{index === 3 && memoryImages.length > 4 && <span className="detail-more-photos">+{memoryImages.length - 4}<small>more</small></span>}</button>)}
       </section>
 
       <section className="detail-title"><span aria-hidden="true">“</span><h1>{memory.title}</h1></section>
@@ -84,7 +104,7 @@ const MemoryDetail = () => {
 
     <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{memory.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { await deleteMemory(memory.id); navigate("/journal", { replace: true }); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
-    <Dialog open={imageOpen} onOpenChange={setImageOpen}><DialogContent className="detail-image-lightbox"><DialogTitle className="sr-only">{memory.title} photo</DialogTitle><img src={activeImage || memoryImages[0]} alt={memory.title} /></DialogContent></Dialog>
+    <Dialog open={imageOpen} onOpenChange={setImageOpen}><DialogContent className="detail-image-lightbox"><DialogTitle className="sr-only">{memory.title} photo {activeImageIndex + 1} of {memoryImages.length}</DialogTitle><div className="detail-lightbox-stage" onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={(event) => { if (touchStartX === null) return; const distance = event.changedTouches[0].clientX - touchStartX; if (Math.abs(distance) > 45 && memoryImages.length > 1) moveImage(distance > 0 ? -1 : 1); setTouchStartX(null); }}><img src={memoryImages[activeImageIndex] || memoryImages[0]} alt={`${memory.title}, photo ${activeImageIndex + 1}`} />{memoryImages.length > 1 && <><button className="detail-lightbox-arrow previous" onClick={() => moveImage(-1)} aria-label="Previous photo"><ChevronLeft /></button><button className="detail-lightbox-arrow next" onClick={() => moveImage(1)} aria-label="Next photo"><ChevronRight /></button><span className="detail-lightbox-count" aria-live="polite">{activeImageIndex + 1} of {memoryImages.length}</span></>}</div></DialogContent></Dialog>
 
     <QuickAddMemorySheet open={Boolean(editing)} editingMemory={editing} onOpenChange={(open) => { if (!open) setEditing(null); }} onAdd={async (data) => { if (!editing) return false; const saved = await updateMemory(editing.id, { ...data, tags: data.tags ?? [] }); if (saved) setEditing(null); return saved; }} />
   </main>;

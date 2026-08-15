@@ -8,6 +8,7 @@ import { useMemories } from "@/hooks/useMemories";
 import type { Memory } from "@/types/memory";
 import { useAuth } from "@/contexts/AuthContext";
 import MiniPlayer from "@/components/MiniPlayer";
+import MemoryPhotoGallery from "@/components/MemoryPhotoGallery";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
 import type { LocationResult } from "@/components/LocationSearch";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -513,7 +514,7 @@ const MemoryMapHome = () => {
           </> : <>
             <div className="inspector-scroll-area">
               <div className="desktop-inspector-media">
-                <img src={selectedMemory.imageUrl || "/landing/landing_02.png"} alt="" className="memory-cover" style={{ objectPosition: `${selectedMemory.imageFocusPoints?.[0]?.x ?? 50}% ${selectedMemory.imageFocusPoints?.[0]?.y ?? 50}%` }} />
+                <MemoryPhotoGallery memory={selectedMemory} />
                 <div className="desktop-inspector-actions" onClick={(event) => event.stopPropagation()}>
                   <div className="desktop-inspector-menu-wrap">
                     <button onClick={() => setInspectorMenuOpen((current) => !current)} aria-label="Memory actions"><MoreHorizontal /></button>

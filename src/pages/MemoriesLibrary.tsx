@@ -7,6 +7,7 @@ import type { Memory } from "@/types/memory";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
 import MiniPlayer from "@/components/MiniPlayer";
+import MemoryPhotoGallery from "@/components/MemoryPhotoGallery";
 import { useAuth } from "@/contexts/AuthContext";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
@@ -136,7 +137,7 @@ const MemoriesLibrary = () => {
     <AnimatePresence>{selectedMemory && <motion.aside className="library-memory-inspector" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }} transition={{ duration: .3, ease: [0.4,0,0.2,1] }}>
       <div className="library-inspector-scroll-area">
         <div className="desktop-inspector-media">
-          <img src={selectedMemory.imageUrl || "/landing/landing_02.png"} alt="" className="memory-cover" style={{ objectPosition: `${selectedMemory.imageFocusPoints?.[0]?.x ?? 50}% ${selectedMemory.imageFocusPoints?.[0]?.y ?? 50}%` }} />
+          <MemoryPhotoGallery memory={selectedMemory} />
           <div className="desktop-inspector-actions">
             <div className="desktop-inspector-menu-wrap">
               <button onClick={() => setInspectorMenuOpen((open) => !open)} aria-label="Memory actions"><MoreHorizontal /></button>
