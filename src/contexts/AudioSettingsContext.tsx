@@ -10,7 +10,9 @@ type AudioSettingsContextValue = {
 
 const AudioSettingsContext = createContext<AudioSettingsContextValue | undefined>(undefined);
 const MUTED_STORAGE_KEY = "recallfm:site-muted";
-const VOLUME_STORAGE_KEY = "recallfm:site-volume";
+// Use a new Momentunes key so the zero-volume value written by the former
+// missing-preference bug is not treated as an intentional user setting.
+const VOLUME_STORAGE_KEY = "momentunes:site-volume";
 const DEFAULT_VOLUME = 0.75;
 
 // Volume is stored as a 0-1 number because that matches HTMLAudioElement.volume.
