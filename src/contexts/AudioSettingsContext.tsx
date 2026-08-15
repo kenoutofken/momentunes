@@ -23,7 +23,9 @@ export const AudioSettingsProvider = ({ children }: { children: React.ReactNode 
   });
   const [siteVolume, setSiteVolumeState] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_VOLUME;
-    const savedVolume = Number(window.localStorage.getItem(VOLUME_STORAGE_KEY));
+    const storedVolume = window.localStorage.getItem(VOLUME_STORAGE_KEY);
+    if (storedVolume === null) return DEFAULT_VOLUME;
+    const savedVolume = Number(storedVolume);
     return Number.isFinite(savedVolume) ? clampVolume(savedVolume) : DEFAULT_VOLUME;
   });
 
