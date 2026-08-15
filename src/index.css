@@ -149,6 +149,8 @@ body {
 .memory-map-home { position: fixed; inset: 0; overflow: hidden; background: #d8edf1; color: #171717; }
 .memory-map-home .maplibregl-map { font-family: var(--font-body); }
 .map-wash { position: absolute; inset: 0; pointer-events: none; background: rgba(244,250,250,.14); }
+.map-add-hint { position: absolute; z-index: 8; bottom: 24px; left: 50%; display: flex; width: max-content; max-width: calc(100vw - 36px); min-height: 48px; align-items: center; gap: 9px; padding: 4px 4px 4px 14px; transform: translateX(-50%); border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(17,17,17,.82); color: white; box-shadow: 0 10px 28px rgba(17,24,39,.22); backdrop-filter: blur(12px); }.map-add-hint > svg { width: 18px; flex: none; color: #ff5b9e; }.map-add-hint > span { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }.map-add-hint > button { display: grid; width: 40px; height: 40px; flex: none; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.12); color: white; }.map-add-hint > button:hover { background: rgba(255,255,255,.2); }.map-add-hint > button svg { width: 16px; }
+.map-add-memory-prompt { position: absolute; z-index: 9; bottom: 24px; left: 50%; display: grid; width: min(620px,calc(100vw - 36px)); min-height: 72px; grid-template-columns: 24px minmax(0,1fr) auto auto; align-items: center; gap: 12px; padding: 12px; transform: translateX(-50%); border: 1px solid rgba(17,17,17,.08); border-radius: 22px; background: rgba(255,255,255,.97); box-shadow: 0 14px 34px rgba(17,24,39,.22); backdrop-filter: blur(15px); }.map-add-memory-prompt > svg { width: 22px; color: #f31e78; }.map-add-memory-prompt > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.map-add-memory-prompt strong { font-size: 14px; }.map-add-memory-prompt span { overflow: hidden; color: #777; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.map-add-memory-prompt button { min-width: 82px; height: 44px; padding: 0 14px; border: 0; border-radius: 14px; background: #eee; color: #333; font-size: 13px; font-weight: 700; }.map-add-memory-prompt button.confirm { background: #f31e78; color: white; }.map-add-memory-prompt button:disabled { opacity: .5; }
 .map-header { position: absolute; z-index: 4; top: max(18px, env(safe-area-inset-top)); left: clamp(16px, 4vw, 42px); right: clamp(16px, 4vw, 42px); display: flex; align-items: center; gap: 10px; pointer-events: none; }
 .add-memory-pill, .round-menu-button { pointer-events: auto; border: 0; box-shadow: 0 10px 26px rgba(17,24,39,.2); transition: transform .18s ease, box-shadow .18s ease; }
 .add-memory-pill:hover, .round-menu-button:hover { transform: translateY(-2px); box-shadow: 0 13px 30px rgba(17,24,39,.24); }
@@ -236,11 +238,13 @@ body {
   .now-playing-memory > .memory-carousel-arrows button:disabled { cursor: default; opacity: .35; }
   .now-playing-memory > .memory-carousel-arrows button svg { width: 19px; }
   .now-playing-memory > .memory-carousel-arrows span { padding: 0 5px; background: transparent; color: white; box-shadow: none; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .map-add-hint, .map-add-memory-prompt { bottom: calc(108px + env(safe-area-inset-bottom)); }
 }
 
 /* Keep phone cards compact. This follows the tablet rules so the broader
    max-width: 899px declarations cannot override the phone layout. */
 @media (max-width: 580px) {
+  .map-add-memory-prompt { grid-template-areas: "copy copy" "cancel confirm"; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 9px 10px; padding: 12px; }.map-add-memory-prompt > svg { position: absolute; top: 18px; left: 14px; }.map-add-memory-prompt > div { grid-area: copy; padding-left: 34px; }.map-add-memory-prompt > button:not(.confirm) { grid-area: cancel; }.map-add-memory-prompt > button.confirm { grid-area: confirm; }.map-add-memory-prompt button { width: 100%; min-width: 0; }
   .now-playing-memory {
     height: 344px;
     min-height: 0;

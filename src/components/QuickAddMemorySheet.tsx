@@ -20,7 +20,7 @@ type QuickMemory = {
   mood: string; people: string[]; isPublic: boolean; imageUrl?: string | null; imageUrls?: string[]; imageFocusPoints?: Array<{ x: number; y: number }>; tags?: string[];
 };
 
-type QuickAddMemorySheetProps = { open: boolean; onOpenChange: (open: boolean) => void; onAdd: (memory: QuickMemory) => Promise<boolean>; editingMemory?: Memory | null };
+type QuickAddMemorySheetProps = { open: boolean; onOpenChange: (open: boolean) => void; onAdd: (memory: QuickMemory) => Promise<boolean>; editingMemory?: Memory | null; initialLocation?: LocationResult | null };
 
 const pickerMapStyle = (apiKey?: string): MapStyle => ({
   version: 8,
@@ -28,7 +28,7 @@ const pickerMapStyle = (apiKey?: string): MapStyle => ({
   layers: [{ id: "base", type: "raster", source: "base", paint: { "raster-opacity": .76, "raster-saturation": -.35 } }],
 });
 
-const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: QuickAddMemorySheetProps) => {
+const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initialLocation }: QuickAddMemorySheetProps) => {
   const { user } = useAuth();
   const isMobile = useIsMobile(900);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,6 +83,12 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
     );
   }, [editingMemory, open]);
 
+  useEffect(() => {
+    if (!open || editingMemory || !initialLocation) return;
+    setLocation(initialLocation);
+    setPickerCenter({ lat: initialLocation.lat, lng: initialLocation.lng });
+  }, [editingMemory, initialLocation, open]);
+
   const reset = () => {
     setTitle(""); setDate(new Date().toISOString().slice(0, 10)); setLocation(null);
     setSongTitle(""); setArtist(""); setImageFiles([]); setImagePreviews([]); setImageFocusPoints([]); setAdjustingPhoto(null);
@@ -111,7 +117,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
       setLocatingDevice(false);
       return;
     }
-    if (editingMemory || location || requestedDeviceLocationRef.current || !navigator.geolocation) return;
+    if (editingMemory || initialLocation || location || requestedDeviceLocationRef.current || !navigator.geolocation) return;
 
     requestedDeviceLocationRef.current = true;
     let cancelled = false;
@@ -128,7 +134,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory }: Quick
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 300_000 },
     );
     return () => { cancelled = true; };
-  }, [editingMemory, location, open, resolveLocation]);
+  }, [editingMemory, initialLocation, location, open, resolveLocation]);
 
   const startPickingLocation = () => {
     const center = location ? { lat: location.lat, lng: location.lng } : pickerCenter;

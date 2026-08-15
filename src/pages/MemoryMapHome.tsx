@@ -9,6 +9,7 @@ import type { Memory } from "@/types/memory";
 import { useAuth } from "@/contexts/AuthContext";
 import MiniPlayer from "@/components/MiniPlayer";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
+import type { LocationResult } from "@/components/LocationSearch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Supercluster from "supercluster";
@@ -20,6 +21,23 @@ const DEFAULT_CENTER = { longitude: -73.92, latitude: 40.7, zoom: 9.25 };
 type MemoryClusterProperties = { memoryId?: string };
 type MobileCardMotion = { direction: -1 | 0 | 1; isCollection: boolean };
 const FAVORITES_KEY = "momentunes:favorite-memories";
+const MAP_ADD_HINT_KEY = "momentunes:map-add-hint-seen";
+type MapAddHintState = { visitsShown: number; lastShown?: string; dismissedUntil?: number; completed?: boolean };
+
+const readMapAddHintState = (): MapAddHintState => {
+  try {
+    const stored = localStorage.getItem(MAP_ADD_HINT_KEY);
+    if (!stored) return { visitsShown: 0 };
+    if (stored === "true") return { visitsShown: 1, lastShown: format(new Date(), "yyyy-MM-dd") };
+    return { visitsShown: 0, ...JSON.parse(stored) };
+  } catch {
+    return { visitsShown: 0 };
+  }
+};
+
+const writeMapAddHintState = (state: MapAddHintState) => {
+  try { localStorage.setItem(MAP_ADD_HINT_KEY, JSON.stringify(state)); } catch { /* The hint can still work without persistence. */ }
+};
 
 const mobileCardVariants = {
   initial: ({ direction, isCollection }: MobileCardMotion) => direction === 0
@@ -82,6 +100,11 @@ const MemoryMapHome = () => {
   const { profile: currentProfile } = useCurrentProfile();
   const mapRef = useRef<MapRef | null>(null);
   const cardTouchStartX = useRef<number | null>(null);
+  const mapLongPressTimerRef = useRef<number | null>(null);
+  const suppressMapClickRef = useRef(false);
+  const mapLocationRequestRef = useRef(0);
+  const mapHintTimerRef = useRef<number | null>(null);
+  const mapHintDismissTimerRef = useRef<number | null>(null);
   const { memories, loading, addMemory, updateMemory, deleteMemory } = useMemories();
   const requestedMemoryId = searchParams.get("memory");
   const [selectedId, setSelectedId] = useState<string | null>(requestedMemoryId);
@@ -89,6 +112,10 @@ const MemoryMapHome = () => {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapView, setMapView] = useState({ bounds: [-180, -85, 180, 85] as [number, number, number, number], zoom: DEFAULT_CENTER.zoom });
   const [showForm, setShowForm] = useState(false);
+  const [formInitialLocation, setFormInitialLocation] = useState<LocationResult | null>(null);
+  const [mapDraftLocation, setMapDraftLocation] = useState<LocationResult | null>(null);
+  const [resolvingMapDraft, setResolvingMapDraft] = useState(false);
+  const [showMapAddHint, setShowMapAddHint] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -166,6 +193,29 @@ const MemoryMapHome = () => {
     });
   }, [latestLocatedMemory, loading, mapLoaded, selectedId]);
 
+  useEffect(() => {
+    if (!mapLoaded || memoryPanelOpen || showForm || searchOpen || filtersOpen) return;
+    const hintState = readMapAddHintState();
+    const today = format(new Date(), "yyyy-MM-dd");
+    if (hintState.completed || hintState.visitsShown >= 3 || hintState.lastShown === today || (hintState.dismissedUntil ?? 0) > Date.now()) return;
+
+    mapHintTimerRef.current = window.setTimeout(() => {
+      setShowMapAddHint(true);
+      writeMapAddHintState({ ...hintState, visitsShown: hintState.visitsShown + 1, lastShown: today });
+      mapHintDismissTimerRef.current = window.setTimeout(() => setShowMapAddHint(false), 5_000);
+    }, 1_200);
+
+    return () => {
+      if (mapHintTimerRef.current !== null) window.clearTimeout(mapHintTimerRef.current);
+      mapHintTimerRef.current = null;
+    };
+  }, [filtersOpen, mapLoaded, memoryPanelOpen, searchOpen, showForm]);
+
+  useEffect(() => () => {
+    if (mapHintTimerRef.current !== null) window.clearTimeout(mapHintTimerRef.current);
+    if (mapHintDismissTimerRef.current !== null) window.clearTimeout(mapHintDismissTimerRef.current);
+  }, []);
+
   const selectedMemoryId = selectedMemory?.id;
   const selectedLatitude = selectedMemory?.locationLat;
   const selectedLongitude = selectedMemory?.locationLng;
@@ -204,15 +254,74 @@ const MemoryMapHome = () => {
     setMapView({ bounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()], zoom: map.getZoom() });
   };
 
+  const clearMapLongPress = () => {
+    if (mapLongPressTimerRef.current !== null) window.clearTimeout(mapLongPressTimerRef.current);
+    mapLongPressTimerRef.current = null;
+  };
+
+  const dismissMapAddHint = (snooze = false) => {
+    if (mapHintTimerRef.current !== null) window.clearTimeout(mapHintTimerRef.current);
+    if (mapHintDismissTimerRef.current !== null) window.clearTimeout(mapHintDismissTimerRef.current);
+    mapHintTimerRef.current = null;
+    mapHintDismissTimerRef.current = null;
+    setShowMapAddHint(false);
+    if (snooze) writeMapAddHintState({ ...readMapAddHintState(), dismissedUntil: Date.now() + 7 * 24 * 60 * 60 * 1_000 });
+  };
+
+  const completeMapAddHint = () => {
+    writeMapAddHintState({ ...readMapAddHintState(), completed: true });
+    dismissMapAddHint();
+  };
+
+  const chooseMapDraftLocation = async (lat: number, lng: number, suppressNextClick = false) => {
+    clearMapLongPress();
+    suppressMapClickRef.current = suppressNextClick;
+    setMemoryPanelOpen(false);
+    setSelectedId(null);
+    setActiveCollectionIds([]);
+    setMapDraftLocation({ name: "Selected map location", lat, lng, placeId: null });
+    setResolvingMapDraft(true);
+    const requestId = ++mapLocationRequestRef.current;
+    try {
+      const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY;
+      if (!apiKey) throw new Error("Geoapify API key is not configured");
+      const params = new URLSearchParams({ lat: String(lat), lon: String(lng), apiKey, format: "geojson" });
+      const response = await fetch(`https://api.geoapify.com/v1/geocode/reverse?${params}`);
+      if (!response.ok) throw new Error(`Reverse geocoding failed (${response.status})`);
+      const properties = (await response.json())?.features?.[0]?.properties;
+      if (requestId !== mapLocationRequestRef.current) return;
+      setMapDraftLocation({ name: properties?.formatted || properties?.address_line2 || "Selected map location", lat, lng, placeId: properties?.place_id ?? null });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      if (requestId === mapLocationRequestRef.current) setResolvingMapDraft(false);
+    }
+  };
+
   return (
     <main className={`memory-map-home ${!isMobile && memoryPanelOpen && selectedMemory ? "has-desktop-inspector" : ""}`}>
       <Map
         ref={mapRef}
         onLoad={() => { setMapLoaded(true); updateMapView(); }}
         onMoveEnd={updateMapView}
+        onMoveStart={(event) => { clearMapLongPress(); if (event.originalEvent) dismissMapAddHint(); }}
+        onContextMenu={(event) => {
+          event.originalEvent.preventDefault();
+          void chooseMapDraftLocation(event.lngLat.lat, event.lngLat.lng);
+        }}
+        onTouchStart={(event) => {
+          dismissMapAddHint();
+          clearMapLongPress();
+          const { lat, lng } = event.lngLat;
+          mapLongPressTimerRef.current = window.setTimeout(() => { void chooseMapDraftLocation(lat, lng, true); }, 650);
+        }}
+        onTouchEnd={clearMapLongPress}
         onClick={() => {
+          dismissMapAddHint();
+          if (suppressMapClickRef.current) { suppressMapClickRef.current = false; return; }
           setSearchOpen(false);
           setFiltersOpen(false);
+          setMapDraftLocation(null);
           if (isMobile && memoryPanelOpen) {
             setMemoryPanelOpen(false);
             setSelectedId(null);
@@ -229,6 +338,9 @@ const MemoryMapHome = () => {
         style={{ position: "absolute", inset: 0 }}
       >
         {!isMobile && <NavigationControl position="bottom-left" showCompass={false} />}
+        {mapDraftLocation && <Marker longitude={mapDraftLocation.lng} latitude={mapDraftLocation.lat} anchor="bottom">
+          <div className="memory-pin map-draft-pin" aria-hidden="true"><span className="pin-brand-quote">“</span></div>
+        </Marker>}
         {mapClusters.map((feature) => {
           const [longitude, latitude] = feature.geometry.coordinates;
           if (feature.properties.cluster) return <Marker key={`cluster-${feature.properties.cluster_id}`} longitude={longitude} latitude={latitude} anchor="center">
@@ -272,8 +384,21 @@ const MemoryMapHome = () => {
 
       <div className="map-wash" aria-hidden="true" />
 
+      {showMapAddHint && !memoryPanelOpen && !showForm && !searchOpen && !filtersOpen && !mapDraftLocation && <div className="map-add-hint" role="status">
+        <MapPin />
+        <span>{isMobile ? "Long-press the map to add a memory here" : "Right-click the map to add a memory here"}</span>
+        <button type="button" onClick={() => dismissMapAddHint(true)} aria-label="Dismiss map tip for seven days"><X /></button>
+      </div>}
+
+      {mapDraftLocation && <div className="map-add-memory-prompt" role="dialog" aria-label="Add a memory at this location" onClick={(event) => event.stopPropagation()}>
+        <MapPin />
+        <div><strong>Add a memory here?</strong><span>{resolvingMapDraft ? "Finding this place…" : mapDraftLocation.name}</span></div>
+        <button type="button" onClick={() => { mapLocationRequestRef.current += 1; setMapDraftLocation(null); setResolvingMapDraft(false); }}>Cancel</button>
+        <button type="button" className="confirm" disabled={resolvingMapDraft} onClick={() => { setFormInitialLocation(mapDraftLocation); setMapDraftLocation(null); setShowForm(true); }}>Add memory</button>
+      </div>}
+
       <header className="map-header">
-        <button type="button" className="add-memory-pill" onClick={() => setShowForm(true)}>
+        <button type="button" className="add-memory-pill" title={isMobile ? "Add a memory, or long-press the map to choose a place" : "Add a memory, or right-click the map to choose a place"} aria-label={isMobile ? "Add memory. You can also long-press the map to choose a place." : "Add memory. You can also right-click the map to choose a place."} onClick={() => { setMapDraftLocation(null); setFormInitialLocation(null); setShowForm(true); }}>
           <Plus size={23} strokeWidth={2.2} />
           <span>Add</span>
         </button>
@@ -290,7 +415,7 @@ const MemoryMapHome = () => {
       </div>}
 
       <aside className="desktop-map-sidebar">
-        <button type="button" className="desktop-add-memory" onClick={() => setShowForm(true)}><Plus /><span>Add memory</span></button>
+        <button type="button" className="desktop-add-memory" title="Add a memory, or right-click the map to choose a place" onClick={() => { setMapDraftLocation(null); setFormInitialLocation(null); setShowForm(true); }}><Plus /><span>Add memory</span></button>
         <nav className="desktop-map-nav" aria-label="Desktop navigation">
           <button className="active"><MapIcon /><span>Map</span></button>
           <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
@@ -422,7 +547,7 @@ const MemoryMapHome = () => {
         <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
       </nav>
 
-      <QuickAddMemorySheet open={showForm} onOpenChange={setShowForm} onAdd={async (data) => Boolean(await addMemory({ ...data, tags: data.tags ?? [] }))} />
+      <QuickAddMemorySheet open={showForm} initialLocation={formInitialLocation} onOpenChange={(open) => { setShowForm(open); if (!open) setFormInitialLocation(null); }} onAdd={async (data) => { const saved = Boolean(await addMemory({ ...data, tags: data.tags ?? [] })); if (saved && formInitialLocation) completeMapAddHint(); return saved; }} />
       <QuickAddMemorySheet open={Boolean(editingMemory)} editingMemory={editingMemory} onOpenChange={(next) => { if (!next) setEditingMemory(null); }} onAdd={async (data) => { if (!editingMemory) return false; const saved = await updateMemory(editingMemory.id, { ...data, tags: data.tags ?? [] }); if (saved) setEditingMemory(null); return saved; }} />
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{selectedMemory?.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { if (!selectedMemory || selectedMemory.id === fallbackMemory.id) return; await deleteMemory(selectedMemory.id); setMemoryPanelOpen(false); setSelectedId(null); setActiveCollectionIds([]); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <Sheet open={isMobile && filtersOpen} onOpenChange={setFiltersOpen}>
