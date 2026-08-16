@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Marker, NavigationControl, type MapRef, type MapStyle } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { format } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Plus, Search, SlidersHorizontal, Star, Trash2, UserRound, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Plus, Search, SlidersHorizontal, Star, Trash2, UserRound, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMemories } from "@/hooks/useMemories";
 import type { Memory } from "@/types/memory";
@@ -17,11 +17,16 @@ import Supercluster from "supercluster";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import MemoryDetail from "@/pages/MemoryDetail";
 
 const DEFAULT_CENTER = { longitude: -73.92, latitude: 40.7, zoom: 9.25 };
 type MemoryClusterProperties = { memoryId?: string };
 type MobileCardMotion = { direction: -1 | 0 | 1; isCollection: boolean };
 const FAVORITES_KEY = "momentunes:favorite-memories";
+const MAP_DISPLAY_KEY = "momentunes:map-display";
+const FRIEND_COLOR = "#3978d4";
 const MAP_ADD_HINT_KEY = "momentunes:map-add-hint-seen";
 type MapAddHintState = { visitsShown: number; lastShown?: string; dismissedUntil?: number; completed?: boolean };
 
@@ -108,6 +113,14 @@ const MemoryMapHome = () => {
   const mapHintDismissTimerRef = useRef<number | null>(null);
   const { memories, loading, addMemory, updateMemory, deleteMemory } = useMemories();
   const requestedMemoryId = searchParams.get("memory");
+  const requestedProfileId = searchParams.get("profile");
+  const requestedFriendFilterId = searchParams.get("friend");
+  const requestedProfileUsername = searchParams.get("username");
+  const [friendMapMemories, setFriendMapMemories] = useState<Memory[]>([]);
+  const [friendMapOwner, setFriendMapOwner] = useState<{ username: string; displayName?: string; avatarUrl?: string } | null>(null);
+  const [friendMapLoading, setFriendMapLoading] = useState(false);
+  const [friendsMemories, setFriendsMemories] = useState<Memory[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(requestedMemoryId);
   const [activeCollectionIds, setActiveCollectionIds] = useState<string[]>(requestedMemoryId ? [requestedMemoryId] : []);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -120,8 +133,15 @@ const MemoryMapHome = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [year, setYear] = useState("all");
+  const [yearFrom, setYearFrom] = useState("");
+  const [yearTo, setYearTo] = useState("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [mapDisplay, setMapDisplay] = useState<{ mine: boolean; friends: boolean }>(() => {
+    if (requestedFriendFilterId) return { mine: false, friends: true };
+    try { return { mine: true, friends: false, ...JSON.parse(localStorage.getItem(MAP_DISPLAY_KEY) || "{}") }; } catch { return { mine: true, friends: false }; }
+  });
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>(requestedFriendFilterId ? [requestedFriendFilterId] : []);
+  const [friendFilterQuery, setFriendFilterQuery] = useState("");
   const [favorites] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]")); } catch { return new Set(); }
   });
@@ -130,17 +150,102 @@ const MemoryMapHome = () => {
   const [inspectorMenuOpen, setInspectorMenuOpen] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [detailMemory, setDetailMemory] = useState<Memory | null>(null);
   const displayName = currentProfile?.display_name || user?.user_metadata?.display_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Your profile";
   const username = currentProfile?.username || user?.user_metadata?.username || user?.email?.split("@")[0] || "";
   const avatarUrl = currentProfile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
 
+  useEffect(() => {
+    if (!requestedProfileId) { setFriendMapMemories([]); setFriendMapOwner(null); setFriendMapLoading(false); return; }
+    let cancelled = false;
+    setFriendMapLoading(true);
+    const loadFriendMap = async () => {
+      const [{ data, error }, { data: owner, error: ownerError }] = await Promise.all([
+        supabase.from("memories").select("*").eq("user_id", requestedProfileId).eq("is_public", true).order("date", { ascending: false }),
+        supabase.from("profiles").select("user_id, username, display_name, avatar_url").eq("user_id", requestedProfileId).maybeSingle(),
+      ]);
+      if (cancelled) return;
+      if (error) toast.error("Could not load this friend's map");
+      if (ownerError) console.error("Could not load friend profile", ownerError);
+      setFriendMapOwner({
+        username: owner?.username ?? requestedProfileUsername ?? "friend",
+        displayName: owner?.display_name ?? undefined,
+        avatarUrl: owner?.avatar_url ?? undefined,
+      });
+      setFriendMapMemories((data ?? []).map((row) => ({
+        id: row.id, userId: row.user_id, username: owner?.username ?? requestedProfileUsername, displayName: owner?.display_name, avatarUrl: owner?.avatar_url,
+        title: row.title, description: row.description ?? "", songTitle: row.song_title, artist: row.artist, date: row.date,
+        memoryYear: row.memory_year, memorySeason: row.memory_season, locationName: row.location_name, locationLat: row.location_lat, locationLng: row.location_lng, locationPlaceId: row.location_place_id,
+        mood: row.mood, people: row.people ?? [], isPublic: row.is_public, imageUrl: row.image_url, imageUrls: row.image_urls?.length ? row.image_urls : row.image_url ? [row.image_url] : [], tags: row.tags ?? [], createdAt: row.created_at,
+      })));
+      setFriendMapLoading(false);
+    };
+    void loadFriendMap();
+    return () => { cancelled = true; };
+  }, [requestedProfileId, requestedProfileUsername]);
+
+  useEffect(() => {
+    try { localStorage.setItem(MAP_DISPLAY_KEY, JSON.stringify(mapDisplay)); } catch { /* Display preferences can remain session-only. */ }
+  }, [mapDisplay]);
+
+  useEffect(() => {
+    if (!requestedFriendFilterId) return;
+    setMapDisplay({ mine: false, friends: true });
+    setSelectedFriendIds([requestedFriendFilterId]);
+  }, [requestedFriendFilterId]);
+
+  useEffect(() => {
+    if (!user || requestedProfileId || !mapDisplay.friends) { setFriendsMemories([]); setFriendsLoading(false); return; }
+    let cancelled = false;
+    const loadFriendsMemories = async () => {
+      setFriendsLoading(true);
+      const { data: follows, error: followsError } = await supabase.from("follows").select("following_id").eq("follower_id", user.id);
+      if (cancelled) return;
+      if (followsError) { toast.error("Could not load friends’ memories"); setFriendsLoading(false); return; }
+      const friendIds = (follows ?? []).map((follow) => follow.following_id);
+      if (!friendIds.length) { setFriendsMemories([]); setFriendsLoading(false); return; }
+      const [{ data: profiles }, { data: rows, error }] = await Promise.all([
+        supabase.from("profiles").select("user_id, username, display_name, avatar_url").in("user_id", friendIds),
+        supabase.from("memories").select("*").in("user_id", friendIds).eq("is_public", true).order("date", { ascending: false }),
+      ]);
+      if (cancelled) return;
+      if (error) toast.error("Could not load friends’ memories");
+      const profileById = new globalThis.Map((profiles ?? []).map((profile) => [profile.user_id, profile]));
+      setFriendsMemories((rows ?? []).map((row) => {
+        const owner = profileById.get(row.user_id);
+        return {
+          id: row.id, userId: row.user_id, username: owner?.username, displayName: owner?.display_name, avatarUrl: owner?.avatar_url,
+          title: row.title, description: row.description ?? "", songTitle: row.song_title, artist: row.artist, date: row.date,
+          memoryYear: row.memory_year, memorySeason: row.memory_season, locationName: row.location_name, locationLat: row.location_lat, locationLng: row.location_lng, locationPlaceId: row.location_place_id,
+          mood: row.mood, people: row.people ?? [], isPublic: row.is_public, imageUrl: row.image_url, imageUrls: row.image_urls?.length ? row.image_urls : row.image_url ? [row.image_url] : [], tags: row.tags ?? [], createdAt: row.created_at,
+        };
+      }));
+      setFriendsLoading(false);
+    };
+    void loadFriendsMemories().catch((error) => {
+      console.error("Could not load friends’ memories", error);
+      if (!cancelled) {
+        setFriendsMemories([]);
+        setFriendsLoading(false);
+        toast.error("Could not load friends’ memories");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [mapDisplay.friends, requestedProfileId, user]);
+
+  const friendOptions = useMemo(() => Array.from(new globalThis.Map(friendsMemories.filter((memory) => memory.userId).map((memory) => [memory.userId!, {
+    id: memory.userId!, username: memory.username || "friend", displayName: memory.displayName, avatarUrl: memory.avatarUrl,
+  }])).values()).sort((a, b) => a.username.localeCompare(b.username)), [friendsMemories]);
+  const visibleFriendsMemories = useMemo(() => friendsMemories.filter((memory) => selectedFriendIds.length === 0 || (memory.userId && selectedFriendIds.includes(memory.userId))), [friendsMemories, selectedFriendIds]);
+  const activeMapMemories = useMemo(() => requestedProfileId ? friendMapMemories : [...(mapDisplay.mine ? memories : []), ...(mapDisplay.friends ? visibleFriendsMemories : [])], [friendMapMemories, mapDisplay.friends, mapDisplay.mine, memories, requestedProfileId, visibleFriendsMemories]);
+  const mapLoading = loading || friendMapLoading;
   const locatedMemories = useMemo(
-    () => memories.filter((memory) => typeof memory.locationLat === "number" && typeof memory.locationLng === "number"),
-    [memories],
+    () => activeMapMemories.filter((memory) => typeof memory.locationLat === "number" && typeof memory.locationLng === "number"),
+    [activeMapMemories],
   );
   const displayMemories = useMemo(
-    () => locatedMemories.length ? locatedMemories : [fallbackMemory],
-    [locatedMemories],
+    () => locatedMemories.length || requestedProfileId || !mapDisplay.mine || mapDisplay.friends ? locatedMemories : [fallbackMemory],
+    [locatedMemories, mapDisplay.friends, mapDisplay.mine, requestedProfileId],
   );
   const latestLocatedMemory = useMemo(() => locatedMemories.reduce<Memory | null>((latest, memory) => {
     if (!latest) return memory;
@@ -148,14 +253,32 @@ const MemoryMapHome = () => {
     const latestTime = new Date(latest.createdAt || `${latest.date}T12:00:00`).getTime();
     return memoryTime > latestTime ? memory : latest;
   }, null), [locatedMemories]);
-  const years = useMemo(() => Array.from(new Set(displayMemories.map((memory) => new Date(`${memory.date}T12:00:00`).getFullYear()))).sort((a, b) => b - a), [displayMemories]);
   const filteredMemories = displayMemories.filter((memory) => {
     const haystack = `${memory.title} ${memory.songTitle} ${memory.artist} ${memory.locationName ?? ""}`.toLowerCase();
+    const memoryYear = new Date(`${memory.date}T12:00:00`).getFullYear();
     return haystack.includes(query.trim().toLowerCase())
-      && (year === "all" || String(new Date(`${memory.date}T12:00:00`).getFullYear()) === year)
+      && (!yearFrom || memoryYear >= Number(yearFrom))
+      && (!yearTo || memoryYear <= Number(yearTo))
       && (!favoritesOnly || favorites.has(memory.id));
   });
-  const visibleMemories = query.trim() || year !== "all" || favoritesOnly ? filteredMemories : displayMemories;
+  const visibleMemories = query.trim() || yearFrom || yearTo || favoritesOnly ? filteredMemories : displayMemories;
+  const hasFriendSelection = mapDisplay.friends && selectedFriendIds.length > 0;
+  const displayFilterActive = !mapDisplay.mine || mapDisplay.friends || hasFriendSelection;
+  const allFiltersDefault = !yearFrom && !yearTo && !favoritesOnly && !displayFilterActive;
+  const clearMapFilters = () => { setYearFrom(""); setYearTo(""); setFavoritesOnly(false); setMapDisplay({ mine: true, friends: false }); setSelectedFriendIds([]); setFriendFilterQuery(""); };
+  const matchingFriendOptions = friendOptions.filter((friend) => !selectedFriendIds.includes(friend.id) && `${friend.username} ${friend.displayName || ""}`.toLowerCase().includes(friendFilterQuery.trim().toLowerCase()));
+  const selectedFilterFriend = selectedFriendIds.length === 1 ? friendOptions.find((friend) => friend.id === selectedFriendIds[0]) : undefined;
+  const focusedMapFriend = requestedProfileId ? friendMapOwner : selectedFriendIds.length === 1 ? {
+    username: selectedFilterFriend?.username || requestedProfileUsername || "friend",
+    displayName: selectedFilterFriend?.displayName,
+    avatarUrl: selectedFilterFriend?.avatarUrl,
+  } : null;
+  const focusedMapFriendMemoryCount = requestedProfileId ? friendMapMemories.length : selectedFriendIds.length === 1 ? friendsMemories.filter((memory) => memory.userId === selectedFriendIds[0]).length : 0;
+  const mapDisplayControls = <div className="map-display-filter"><label>Show on map</label><div><button type="button" className={mapDisplay.mine ? "active" : ""} role="switch" aria-checked={mapDisplay.mine} onClick={() => setMapDisplay((current) => ({ ...current, mine: !current.mine }))}><span aria-hidden="true" />My memories</button><button type="button" className={mapDisplay.friends ? "active" : ""} role="switch" aria-checked={mapDisplay.friends} onClick={() => setMapDisplay((current) => ({ ...current, friends: !current.friends }))}><span aria-hidden="true" />{friendsLoading ? "Loading friends…" : "Friends’ memories"}</button></div>{mapDisplay.friends && !friendsLoading && friendOptions.length > 0 && <div className="friend-pin-filter"><div className="friend-filter-search"><Search /><input value={friendFilterQuery} onChange={(event) => setFriendFilterQuery(event.target.value)} placeholder="Add a friend filter…" aria-label="Search friends to filter map" />{friendFilterQuery && <button type="button" onClick={() => setFriendFilterQuery("")} aria-label="Clear friend search"><X /></button>}</div>{selectedFriendIds.length > 0 ? <div className="selected-friend-filters">{selectedFriendIds.map((id) => {
+    const friend = friendOptions.find((item) => item.id === id); if (!friend) return null;
+    return <button type="button" key={id} onClick={() => setSelectedFriendIds((current) => current.filter((item) => item !== id))}>{friend.avatarUrl ? <img src={friend.avatarUrl} alt="" /> : <span>{friend.username.slice(0,2).toUpperCase()}</span>}@{friend.username}<X /></button>;
+  })}<button type="button" className="clear-friend-filters" onClick={() => setSelectedFriendIds([])}>All friends</button></div> : <p className="all-friends-note">Showing all friends</p>}{friendFilterQuery.trim() && <div className="friend-filter-results">{matchingFriendOptions.length ? matchingFriendOptions.slice(0,6).map((friend) => <button type="button" key={friend.id} onClick={() => { setSelectedFriendIds((current) => [...current, friend.id]); setFriendFilterQuery(""); }}>{friend.avatarUrl ? <img src={friend.avatarUrl} alt="" /> : <span>{friend.username.slice(0,2).toUpperCase()}</span>}<strong>@{friend.username}</strong><small>Add</small></button>) : <p>No matching friends</p>}</div>}</div>}</div>;
+  const yearRangeControls = <div className="memory-filter-section"><label>Year range</label><div className="year-range-fields"><label><span>From</span><input type="number" inputMode="numeric" min="1900" max="2100" placeholder="Any year" value={yearFrom} onChange={(event) => setYearFrom(event.target.value.slice(0,4))} /></label><span aria-hidden="true">–</span><label><span>To</span><input type="number" inputMode="numeric" min="1900" max="2100" placeholder="Any year" value={yearTo} onChange={(event) => setYearTo(event.target.value.slice(0,4))} /></label></div></div>;
   const clusterIndex = useMemo(() => {
     const index = new Supercluster<MemoryClusterProperties>({ radius: 54, maxZoom: 17 });
     index.load(visibleMemories.map((memory) => ({
@@ -182,17 +305,24 @@ const MemoryMapHome = () => {
   }, [searchParams]);
 
   useEffect(() => {
+    if (mapLoading || !selectedId || displayMemories.some((memory) => memory.id === selectedId)) return;
+    setSelectedId(null);
+    setMemoryPanelOpen(false);
+    setActiveCollectionIds([]);
+  }, [displayMemories, mapLoading, selectedId]);
+
+  useEffect(() => {
     if (searchParams.get("add") === "true") setShowForm(true);
   }, [searchParams]);
 
   useEffect(() => {
-    if (!mapLoaded || loading || selectedId || !latestLocatedMemory || !mapRef.current) return;
+    if (!mapLoaded || mapLoading || selectedId || !latestLocatedMemory || !mapRef.current) return;
     mapRef.current.easeTo({
       center: [latestLocatedMemory.locationLng!, latestLocatedMemory.locationLat!],
       zoom: 10.25,
       duration: 850,
     });
-  }, [latestLocatedMemory, loading, mapLoaded, selectedId]);
+  }, [latestLocatedMemory, mapLoading, mapLoaded, selectedId]);
 
   useEffect(() => {
     if (!mapLoaded || memoryPanelOpen || showForm || searchOpen || filtersOpen) return;
@@ -338,20 +468,26 @@ const MemoryMapHome = () => {
         attributionControl={false}
         style={{ position: "absolute", inset: 0 }}
       >
-        {!isMobile && <NavigationControl position="bottom-left" showCompass={false} />}
+        {!isMobile && <NavigationControl position="bottom-right" showCompass={false} />}
         {mapDraftLocation && <Marker longitude={mapDraftLocation.lng} latitude={mapDraftLocation.lat} anchor="bottom">
           <div className="memory-pin map-draft-pin" aria-hidden="true"><span className="pin-brand-quote">“</span></div>
         </Marker>}
         {mapClusters.map((feature) => {
           const [longitude, latitude] = feature.geometry.coordinates;
-          if (feature.properties.cluster) return <Marker key={`cluster-${feature.properties.cluster_id}`} longitude={longitude} latitude={latitude} anchor="center">
+          if (feature.properties.cluster) {
+            const clusterLeaves = clusterIndex.getLeaves(feature.properties.cluster_id, Infinity);
+            const clusterMemories = clusterLeaves.map((leaf) => visibleMemories.find((memory) => memory.id === leaf.properties.memoryId)).filter((memory): memory is Memory => Boolean(memory));
+            const hasFriendMemories = clusterMemories.some((memory) => Boolean(memory.userId && memory.userId !== user?.id));
+            const hasOwnMemories = clusterMemories.some((memory) => !memory.userId || memory.userId === user?.id);
+            const clusterOwnership = hasFriendMemories && hasOwnMemories ? "mixed-ownership" : hasFriendMemories ? "friends-ownership" : "own-ownership";
+            return <Marker key={`cluster-${feature.properties.cluster_id}`} longitude={longitude} latitude={latitude} anchor="center">
             <button
               type="button"
-              className="memory-cluster"
+              className={`memory-cluster ${clusterOwnership}`}
               aria-label={`${feature.properties.point_count} memories nearby`}
               onClick={(event) => {
                 event.stopPropagation();
-                const leaves = clusterIndex.getLeaves(feature.properties.cluster_id, Infinity);
+                const leaves = clusterLeaves;
                 const collectionIds = leaves.map((leaf) => leaf.properties.memoryId).filter((id): id is string => Boolean(id));
                 const firstMemory = visibleMemories.find((memory) => memory.id === collectionIds[0]);
                 if (firstMemory) {
@@ -369,15 +505,18 @@ const MemoryMapHome = () => {
               }}
             ><span>{feature.properties.point_count}</span></button>
           </Marker>;
+          }
           const memory = visibleMemories.find((item) => item.id === feature.properties.memoryId);
+          const isFriendPin = Boolean(memory?.userId && memory.userId !== user?.id);
+          const ownerName = memory?.displayName || memory?.username || "Friend";
           return memory ? <Marker key={memory.id} longitude={longitude} latitude={latitude} anchor="bottom">
             <button
               type="button"
-              className={`memory-pin ${memory.id === selectedMemory?.id ? "is-selected" : ""}`}
-              aria-label={`Open ${memory.title}`}
+              className={`memory-pin ${isFriendPin ? "friend-memory-pin" : ""} ${memory.id === selectedMemory?.id ? "is-selected" : ""}`}
+              aria-label={`Open ${memory.title}${isFriendPin ? ` by ${ownerName}` : ""}`}
               onClick={(event) => { event.stopPropagation(); selectMemory(memory); }}
             >
-              <span className="pin-brand-quote" aria-hidden="true">“</span>
+              {isFriendPin ? <span className="friend-pin-avatar" aria-hidden="true" style={!memory.avatarUrl ? { backgroundColor: FRIEND_COLOR } : undefined}>{memory.avatarUrl ? <img src={memory.avatarUrl} alt="" /> : ownerName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span> : <span className="pin-brand-quote" aria-hidden="true">“</span>}
             </button>
           </Marker> : null;
         })}
@@ -408,8 +547,13 @@ const MemoryMapHome = () => {
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search memories…" aria-label="Search memories" />
           {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={17} /></button>}
         </div>
-        <button type="button" className={`map-filter-button ${year !== "all" || favoritesOnly ? "active" : ""}`} onClick={() => setFiltersOpen(true)} aria-label="Filter map memories"><SlidersHorizontal /></button>
+        <button type="button" className={`map-filter-button ${yearFrom || yearTo || favoritesOnly || displayFilterActive ? "active" : ""}`} onClick={() => setFiltersOpen(true)} aria-label="Filter map memories"><SlidersHorizontal /></button>
       </header>
+
+      {isMobile && focusedMapFriend && <div className="mobile-friend-map-owner" aria-label={`Viewing @${focusedMapFriend.username}'s map`}>
+        {focusedMapFriend.avatarUrl ? <img src={focusedMapFriend.avatarUrl} alt="" /> : <span>{focusedMapFriend.username.slice(0,2).toUpperCase()}</span>}
+        <div><strong>@{focusedMapFriend.username}</strong><small>{friendMapLoading || friendsLoading ? "Loading memories…" : `${focusedMapFriendMemoryCount} shared ${focusedMapFriendMemoryCount === 1 ? "memory" : "memories"}`}</small></div>
+      </div>}
 
       {query && <div className="mobile-map-search-results">
         {filteredMemories.length ? filteredMemories.slice(0, 5).map((memory) => <button key={memory.id} onClick={() => selectMemory(memory)}><strong>{memory.title}</strong><span>{memory.songTitle} · {memory.locationName}</span></button>) : <p>No memories found.</p>}
@@ -420,6 +564,7 @@ const MemoryMapHome = () => {
         <nav className="desktop-map-nav" aria-label="Desktop navigation">
           <button className="active"><MapIcon /><span>Map</span></button>
           <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
+          <button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
           <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
         </nav>
         <div className="desktop-account-wrap">
@@ -437,10 +582,11 @@ const MemoryMapHome = () => {
           <button type="button" onClick={() => { setSearchOpen(false); setQuery(""); }} aria-label="Collapse search"><X /></button>
           {query && <div className="desktop-search-results">{filteredMemories.length ? filteredMemories.slice(0, 6).map((memory) => <button key={memory.id} onClick={() => selectMemory(memory)}><strong>{memory.title}</strong><span>{memory.songTitle} · {memory.locationName}</span></button>) : <p>No memories found.</p>}</div>}
         </div> : <button type="button" className="desktop-map-tool-button compact-search-trigger" onClick={() => { setFiltersOpen(false); setSearchOpen(true); }} aria-label="Search memories"><Search /></button>}
-        <button type="button" className={`desktop-map-tool-button ${year !== "all" || favoritesOnly ? "active" : ""}`} onClick={() => { setSearchOpen(false); setFiltersOpen((open) => !open); }} aria-label="Filter map memories"><SlidersHorizontal /></button>
+        <button type="button" className={`desktop-map-tool-button ${yearFrom || yearTo || favoritesOnly || displayFilterActive ? "active" : ""}`} onClick={() => { setSearchOpen(false); setFiltersOpen((open) => !open); }} aria-label="Filter map memories"><SlidersHorizontal /></button>
         {filtersOpen && <div className="desktop-map-filter-card">
-          <div className="desktop-filter-card-header"><strong>Filter memories</strong><button type="button" disabled={year === "all" && !favoritesOnly} onClick={() => { setYear("all"); setFavoritesOnly(false); }}>Clear</button></div>
-          <div className="memory-filter-section"><label>Year</label><div className="filter-chips"><button className={year === "all" ? "active" : ""} onClick={() => setYear("all")}>All years</button>{years.map((item) => <button key={item} className={year === String(item) ? "active" : ""} onClick={() => setYear(String(item))}>{item}</button>)}</div></div>
+          <div className="desktop-filter-card-header"><strong>Filter memories</strong><button type="button" disabled={allFiltersDefault} onClick={clearMapFilters}>Clear</button></div>
+          {mapDisplayControls}
+          {yearRangeControls}
           <label className="favorites-filter"><span><Star /> Favorites only</span><input type="checkbox" checked={favoritesOnly} onChange={(event) => setFavoritesOnly(event.target.checked)} /></label>
           <button className="apply-memory-filters" onClick={() => { setFiltersOpen(false); if (selectedId && !visibleMemories.some((memory) => memory.id === selectedId)) { setSelectedId(null); setMemoryPanelOpen(false); setActiveCollectionIds([]); } }}>Show on map</button>
         </div>}
@@ -451,17 +597,18 @@ const MemoryMapHome = () => {
           {query && <button onClick={() => setQuery("")} aria-label="Clear search"><X /></button>}
           {query && <div className="desktop-search-results">{filteredMemories.length ? filteredMemories.slice(0, 6).map((memory) => <button key={memory.id} onClick={() => selectMemory(memory)}><strong>{memory.title}</strong><span>{memory.songTitle} · {memory.locationName}</span></button>) : <p>No memories found.</p>}</div>}
         </div>
-        <button type="button" className={`desktop-map-filter ${year !== "all" || favoritesOnly ? "active" : ""}`} onClick={() => { setSearchOpen(false); setFiltersOpen((open) => !open); }} aria-label="Filter map memories"><SlidersHorizontal /></button>
+        <button type="button" className={`desktop-map-filter ${yearFrom || yearTo || favoritesOnly || displayFilterActive ? "active" : ""}`} onClick={() => { setSearchOpen(false); setFiltersOpen((open) => !open); }} aria-label="Filter map memories"><SlidersHorizontal /></button>
         {filtersOpen && <div className="desktop-map-filter-card">
-          <div className="desktop-filter-card-header"><strong>Filter memories</strong><button type="button" disabled={year === "all" && !favoritesOnly} onClick={() => { setYear("all"); setFavoritesOnly(false); }}>Clear</button></div>
-          <div className="memory-filter-section"><label>Year</label><div className="filter-chips"><button className={year === "all" ? "active" : ""} onClick={() => setYear("all")}>All years</button>{years.map((item) => <button key={item} className={year === String(item) ? "active" : ""} onClick={() => setYear(String(item))}>{item}</button>)}</div></div>
+          <div className="desktop-filter-card-header"><strong>Filter memories</strong><button type="button" disabled={allFiltersDefault} onClick={clearMapFilters}>Clear</button></div>
+          {mapDisplayControls}
+          {yearRangeControls}
           <label className="favorites-filter"><span><Star /> Favorites only</span><input type="checkbox" checked={favoritesOnly} onChange={(event) => setFavoritesOnly(event.target.checked)} /></label>
           <button className="apply-memory-filters" onClick={() => setFiltersOpen(false)}>Show on map</button>
         </div>}
       </div>}
 
       <AnimatePresence mode="sync" custom={{ direction: cardDirection, isCollection: sharedLocationMemories.length > 1 }}>
-      {!loading && selectedMemory && memoryPanelOpen && (
+      {!mapLoading && selectedMemory && memoryPanelOpen && (
         <motion.article
           key={`${isMobile ? "mobile" : "desktop"}-${selectedMemory.id}`}
           className={`now-playing-memory ${isMobile && sharedLocationMemories.length > 1 ? `has-location-collection ${sharedLocationIndex === 0 ? "collection-first" : sharedLocationIndex === sharedLocationMemories.length - 1 ? "collection-last" : "collection-middle"}` : ""}`}
@@ -471,7 +618,7 @@ const MemoryMapHome = () => {
           animate={isMobile ? "animate" : { opacity: 1, x: 0, scale: 1 }}
           exit={isMobile ? "exit" : { opacity: 0, x: 24, scale: 0.99 }}
           transition={{ duration: prefersReducedMotion ? 0 : isMobile ? 0.28 : 0.32, ease: [0.4, 0, 0.2, 1] }}
-          onClick={() => isMobile && selectedMemory.id !== fallbackMemory.id && navigate(`/journal/memories/${selectedMemory.id}`)}
+          onClick={() => { if (!isMobile || selectedMemory.id === fallbackMemory.id) return; if (requestedProfileId || (selectedMemory.userId && selectedMemory.userId !== user?.id)) navigate(`/discover/memories/${selectedMemory.id}`); else setDetailMemory(selectedMemory); }}
           onTouchStart={(event) => { cardTouchStartX.current = event.touches[0]?.clientX ?? null; }}
           onTouchEnd={(event) => {
             const startX = cardTouchStartX.current;
@@ -490,7 +637,8 @@ const MemoryMapHome = () => {
               <button disabled={sharedLocationIndex === sharedLocationMemories.length - 1} onClick={() => selectAdjacentLocationMemory(1)} aria-label="Next memory"><ChevronRight /></button>
             </div>}
             <div className="memory-story">
-              <div className="memory-title-row"><span className="memory-brand-quote" aria-hidden="true">“</span><h1>{selectedMemory.title}</h1></div>
+              {selectedMemory.userId && selectedMemory.userId !== user?.id && <p className="memory-owner">{selectedMemory.avatarUrl ? <img src={selectedMemory.avatarUrl} alt="" /> : <span style={{ backgroundColor: FRIEND_COLOR }}>{(selectedMemory.displayName || selectedMemory.username || "Friend").slice(0,2).toUpperCase()}</span>}<strong>{selectedMemory.displayName || `@${selectedMemory.username || "friend"}`}</strong></p>}
+              <div className="memory-title-row"><h1>{selectedMemory.title}</h1></div>
               <div className="memory-meta">
                 <p className="memory-location" title={selectedMemory.locationName || "Somewhere special"}>{selectedMemory.locationName || "Somewhere special"}</p>
                 <time dateTime={selectedMemory.date}>{format(new Date(`${selectedMemory.date}T12:00:00`), "MMM d, yyyy")}</time>
@@ -501,14 +649,14 @@ const MemoryMapHome = () => {
               const previousMemory = sharedLocationMemories[sharedLocationIndex - 1];
               return <button type="button" className="previous-memory-card-peek" onClick={(event) => { event.stopPropagation(); selectAdjacentLocationMemory(-1); }} aria-label={`Show previous memory: ${previousMemory.title}`}>
                 <img src={previousMemory.imageUrl || "/landing/landing_02.png"} alt="" />
-                <span><strong>“{previousMemory.title}</strong><small>{previousMemory.locationName || "Somewhere special"}</small></span>
+                <span><strong>{previousMemory.title}</strong><small>{previousMemory.locationName || "Somewhere special"}</small></span>
               </button>;
             })()}
             {sharedLocationMemories.length > 1 && sharedLocationIndex < sharedLocationMemories.length - 1 && (() => {
               const nextMemory = sharedLocationMemories[sharedLocationIndex + 1];
               return <button type="button" className="next-memory-card-peek" onClick={(event) => { event.stopPropagation(); selectAdjacentLocationMemory(1); }} aria-label={`Show next memory: ${nextMemory.title}`}>
                 <img src={nextMemory.imageUrl || "/landing/landing_02.png"} alt="" />
-                <span><strong>“{nextMemory.title}</strong><small>{nextMemory.locationName || "Somewhere special"}</small></span>
+                <span><strong>{nextMemory.title}</strong><small>{nextMemory.locationName || "Somewhere special"}</small></span>
               </button>;
             })()}
           </> : <>
@@ -516,18 +664,19 @@ const MemoryMapHome = () => {
               <div className="desktop-inspector-media">
                 <MemoryPhotoGallery memory={selectedMemory} />
                 <div className="desktop-inspector-actions" onClick={(event) => event.stopPropagation()}>
-                  <div className="desktop-inspector-menu-wrap">
+                  {!requestedProfileId && (!selectedMemory.userId || selectedMemory.userId === user?.id) && <div className="desktop-inspector-menu-wrap">
                     <button onClick={() => setInspectorMenuOpen((current) => !current)} aria-label="Memory actions"><MoreHorizontal /></button>
                     {inspectorMenuOpen && <div className="desktop-inspector-menu">
                       <button onClick={() => { setInspectorMenuOpen(false); setEditingMemory(selectedMemory); }}><Pencil />Edit memory</button>
                       <button className="danger" onClick={() => { setInspectorMenuOpen(false); setDeleteOpen(true); }}><Trash2 />Delete memory</button>
                     </div>}
-                  </div>
+                  </div>}
                   <button onClick={() => { setInspectorMenuOpen(false); setSearchOpen(false); setMemoryPanelOpen(false); }} aria-label="Close inspector"><X /></button>
                 </div>
               </div>
               <div className="memory-story">
-                <div className="memory-title-row"><span className="memory-brand-quote" aria-hidden="true">“</span><h1>{selectedMemory.title}</h1></div>
+                {selectedMemory.userId && selectedMemory.userId !== user?.id && <p className="memory-owner">{selectedMemory.avatarUrl ? <img src={selectedMemory.avatarUrl} alt="" /> : <span style={{ backgroundColor: FRIEND_COLOR }}>{(selectedMemory.displayName || selectedMemory.username || "Friend").slice(0,2).toUpperCase()}</span>}<strong>{selectedMemory.displayName || `@${selectedMemory.username || "friend"}`}</strong></p>}
+                <div className="memory-title-row"><h1>{selectedMemory.title}</h1></div>
                 <div className="desktop-inspector-meta"><p><MapPin />{selectedMemory.locationName || "Somewhere special"}</p><p><CalendarDays />{format(new Date(`${selectedMemory.date}T12:00:00`), "MMMM d, yyyy")}</p></div>
                 <div className="inspector-player" onClick={(event) => event.stopPropagation()}><MiniPlayer key={`${selectedMemory.id}:${selectedMemory.songTitle}:${selectedMemory.artist}`} songTitle={selectedMemory.songTitle} artist={selectedMemory.artist} variant="map" /></div>
               </div>
@@ -545,17 +694,20 @@ const MemoryMapHome = () => {
       <nav className="map-bottom-nav" aria-label="Primary navigation">
         <button className="active"><MapIcon /><span>Map</span></button>
         <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
+        <button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
         <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
       </nav>
 
       <QuickAddMemorySheet open={showForm} initialLocation={formInitialLocation} onOpenChange={(open) => { setShowForm(open); if (!open) setFormInitialLocation(null); }} onAdd={async (data) => { const saved = Boolean(await addMemory({ ...data, tags: data.tags ?? [] })); if (saved && formInitialLocation) completeMapAddHint(); return saved; }} />
+      {detailMemory && <MemoryDetail overlay memoryOverride={detailMemory} onClose={() => setDetailMemory(null)} />}
       <QuickAddMemorySheet open={Boolean(editingMemory)} editingMemory={editingMemory} onOpenChange={(next) => { if (!next) setEditingMemory(null); }} onAdd={async (data) => { if (!editingMemory) return false; const saved = await updateMemory(editingMemory.id, { ...data, tags: data.tags ?? [] }); if (saved) setEditingMemory(null); return saved; }} />
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{selectedMemory?.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { if (!selectedMemory || selectedMemory.id === fallbackMemory.id) return; await deleteMemory(selectedMemory.id); setMemoryPanelOpen(false); setSelectedId(null); setActiveCollectionIds([]); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <Sheet open={isMobile && filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="memories-filter-sheet">
           <SheetHeader><SheetTitle>Filter map memories</SheetTitle></SheetHeader>
-          <button type="button" className="mobile-clear-map-filters" disabled={year === "all" && !favoritesOnly} onClick={() => { setYear("all"); setFavoritesOnly(false); }}>Clear filters</button>
-          <div className="memory-filter-section"><label>Year</label><div className="filter-chips"><button className={year === "all" ? "active" : ""} onClick={() => setYear("all")}>All years</button>{years.map((item) => <button key={item} className={year === String(item) ? "active" : ""} onClick={() => setYear(String(item))}>{item}</button>)}</div></div>
+          <button type="button" className="mobile-clear-map-filters" disabled={allFiltersDefault} onClick={clearMapFilters}>Clear filters</button>
+          {mapDisplayControls}
+          {yearRangeControls}
           <label className="favorites-filter"><span><Star /> Favorites only</span><input type="checkbox" checked={favoritesOnly} onChange={(event) => setFavoritesOnly(event.target.checked)} /></label>
           <button className="apply-memory-filters" onClick={() => { setFiltersOpen(false); if (selectedId && !visibleMemories.some((memory) => memory.id === selectedId)) { setSelectedId(null); setMemoryPanelOpen(false); setActiveCollectionIds([]); } }}>Show on map</button>
         </SheetContent>

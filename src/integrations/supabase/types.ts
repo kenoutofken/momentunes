@@ -14,6 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      user_blocks: {
+        Row: { blocked_id: string; blocker_id: string; created_at: string; id: string }
+        Insert: { blocked_id: string; blocker_id: string; created_at?: string; id?: string }
+        Update: { blocked_id?: string; blocker_id?: string; created_at?: string; id?: string }
+        Relationships: []
+      }
       follows: {
         Row: {
           created_at: string

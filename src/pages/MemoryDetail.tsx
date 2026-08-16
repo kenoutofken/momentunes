@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Map, { Marker, type MapStyle } from "react-map-gl/maplibre";
-import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserRound } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -17,7 +17,9 @@ const detailMapStyle = (apiKey?: string): MapStyle => ({
   layers: [{ id: "base", type: "raster", source: "base", paint: { "raster-opacity": .66, "raster-saturation": -.5 } }],
 });
 
-const MemoryDetail = () => {
+type MemoryDetailProps = { overlay?: boolean; memoryOverride?: Memory | null; onClose?: () => void };
+
+const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: MemoryDetailProps) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { memories, loading, updateMemory, deleteMemory } = useMemories();
@@ -27,7 +29,7 @@ const MemoryDetail = () => {
   const [imageOpen, setImageOpen] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const memory = memories.find((item) => item.id === id);
+  const memory = memoryOverride ?? memories.find((item) => item.id === id);
   const mapStyle = useMemo(() => detailMapStyle(import.meta.env.VITE_GEOAPIFY_API_KEY), []);
   const hasLocation = typeof memory?.locationLat === "number" && typeof memory?.locationLng === "number";
   const memoryImages = memory ? memory.imageUrls?.length ? memory.imageUrls : [memory.imageUrl || "/landing/landing_02.png"] : [];
@@ -41,7 +43,16 @@ const MemoryDetail = () => {
     setActiveImageIndex((current) => (current + direction + memoryImages.length) % memoryImages.length);
   };
 
-  useEffect(() => window.scrollTo(0, 0), []);
+  useEffect(() => { if (!overlay) window.scrollTo(0, 0); }, [overlay]);
+
+  useEffect(() => {
+    if (!overlay || !onClose) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", handleKeyDown); };
+  }, [onClose, overlay]);
 
   useEffect(() => {
     if (!imageOpen || memoryImages.length < 2) return;
@@ -62,13 +73,15 @@ const MemoryDetail = () => {
     setMenuOpen(false);
   };
 
-  if (loading) return <main className="memory-detail-page"><p className="detail-status">Loading memory…</p></main>;
-  if (!memory) return <main className="memory-detail-page"><div className="detail-status"><strong>Memory not found</strong><button onClick={() => navigate("/journal")}>Back to memories</button></div></main>;
+  const closeDetail = () => onClose ? onClose() : navigate(-1);
 
-  return <main className="memory-detail-page">
+  if (loading && !memory) return <main className={`memory-detail-page ${overlay ? "memory-detail-overlay" : ""}`}><p className="detail-status">Loading memory…</p></main>;
+  if (!memory) return <main className={`memory-detail-page ${overlay ? "memory-detail-overlay" : ""}`}><div className="detail-status"><strong>Memory not found</strong><button onClick={() => overlay ? navigate(-1) : navigate("/journal")}>Back to memories</button></div></main>;
+
+  return <main className={`memory-detail-page ${overlay ? "memory-detail-overlay" : ""}`} role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined}>
     <div className="memory-detail-shell">
       <header className="memory-detail-toolbar">
-        <button onClick={() => navigate(-1)} aria-label="Go back"><ArrowLeft /></button>
+        <button autoFocus={overlay} onClick={closeDetail} aria-label="Close memory details"><ArrowLeft /></button>
         <div className="detail-menu-wrap">
           <button onClick={() => setMenuOpen((open) => !open)} aria-label="Memory options"><MoreHorizontal /></button>
           {menuOpen && <div className="detail-overflow-menu">
@@ -83,7 +96,7 @@ const MemoryDetail = () => {
         {memoryImages.slice(0, 4).map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => showImage(index)} aria-label={`View photo ${index + 1} of ${memoryImages.length} full size`}><img src={image} alt="" style={{ objectPosition: `${memory.imageFocusPoints?.[index]?.x ?? 50}% ${memory.imageFocusPoints?.[index]?.y ?? 50}%` }} />{index === 3 && memoryImages.length > 4 && <span className="detail-more-photos">+{memoryImages.length - 4}<small>more</small></span>}</button>)}
       </section>
 
-      <section className="detail-title"><span aria-hidden="true">“</span><h1>{memory.title}</h1></section>
+      <section className="detail-title"><h1>{memory.title}</h1></section>
 
       <button className="detail-location-card" onClick={() => navigate(`/?memory=${memory.id}`)} disabled={!hasLocation}>
         <div className="detail-map-preview">
@@ -99,10 +112,11 @@ const MemoryDetail = () => {
     <nav className="library-bottom-nav" aria-label="Primary navigation">
       <button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button>
       <button className="active" onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
+      <button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
       <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
     </nav>
 
-    <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{memory.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { await deleteMemory(memory.id); navigate("/journal", { replace: true }); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{memory.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { await deleteMemory(memory.id); if (onClose) onClose(); else navigate("/journal", { replace: true }); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
     <Dialog open={imageOpen} onOpenChange={setImageOpen}><DialogContent className="detail-image-lightbox"><DialogTitle className="sr-only">{memory.title} photo {activeImageIndex + 1} of {memoryImages.length}</DialogTitle><div className="detail-lightbox-stage" onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={(event) => { if (touchStartX === null) return; const distance = event.changedTouches[0].clientX - touchStartX; if (Math.abs(distance) > 45 && memoryImages.length > 1) moveImage(distance > 0 ? -1 : 1); setTouchStartX(null); }}><img src={memoryImages[activeImageIndex] || memoryImages[0]} alt={`${memory.title}, photo ${activeImageIndex + 1}`} />{memoryImages.length > 1 && <><button className="detail-lightbox-arrow previous" onClick={() => moveImage(-1)} aria-label="Previous photo"><ChevronLeft /></button><button className="detail-lightbox-arrow next" onClick={() => moveImage(1)} aria-label="Next photo"><ChevronRight /></button><span className="detail-lightbox-count" aria-live="polite">{activeImageIndex + 1} of {memoryImages.length}</span></>}</div></DialogContent></Dialog>
 

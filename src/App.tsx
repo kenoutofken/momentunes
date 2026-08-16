@@ -16,6 +16,7 @@ import MemoryMapHome from "./pages/MemoryMapHome";
 import MemoriesLibrary from "./pages/MemoriesLibrary";
 import Profile from "./pages/Profile";
 import MemoryDetail from "./pages/MemoryDetail";
+import Friends from "./pages/Friends";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="/discover/memories/:id" element={<ProtectedRoute><JournalMemoryDetail /></ProtectedRoute>} />
               <Route path="/journal" element={<ProtectedRoute><MemoriesLibrary /></ProtectedRoute>} />
               <Route path="/account" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
               <Route path="/journal/memories/:id" element={<ProtectedRoute><MemoryDetail /></ProtectedRoute>} />
               <Route path="/playlist" element={<ProtectedRoute><Playlist /></ProtectedRoute>} />
               <Route path="/whats-new" element={<ProtectedRoute><WhatsNew /></ProtectedRoute>} />
