@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Memory } from "@/types/memory";
@@ -8,6 +8,9 @@ export function useMemories() {
   const { user } = useAuth();
   const [memories, setMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(true);
+  // Distinguishes concurrent hook instances (e.g. the map page and a detail
+  // overlay mounted on top of it) so their realtime channels don't collide.
+  const instanceIdRef = useRef(Math.random().toString(36).slice(2));
 
   // Supabase uses snake_case column names; the UI works with camelCase Memory objects.
   const mapMemoryRecord = useCallback((r: {
@@ -81,7 +84,7 @@ export function useMemories() {
 
     // Realtime keeps the journal current if a memory is changed from another tab or device.
     const channel = supabase
-      .channel(`journal-memories-${user.id}`)
+      .channel(`journal-memories-${user.id}-${instanceIdRef.current}`)
       .on(
         "postgres_changes",
         {

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AudioSettingsProvider } from "@/contexts/AudioSettingsContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Auth from "./pages/Auth";
 
 import Discover from "./pages/Discover";
@@ -37,19 +38,21 @@ const App = () => (
         {/* Providers wrap the route tree so auth state, audio preferences, and cached queries are shared everywhere. */}
         <AuthProvider>
           <AudioSettingsProvider>
-            <Routes>
-              <Route path="/welcome" element={<Navigate to="/auth" replace />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<ProtectedRoute><MemoryMapHome /></ProtectedRoute>} />
-              <Route path="/discover/memories/:id" element={<ProtectedRoute><JournalMemoryDetail /></ProtectedRoute>} />
-              <Route path="/journal" element={<ProtectedRoute><MemoriesLibrary /></ProtectedRoute>} />
-              <Route path="/account" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
-              <Route path="/journal/memories/:id" element={<ProtectedRoute><MemoryDetail /></ProtectedRoute>} />
-              <Route path="/playlist" element={<ProtectedRoute><Playlist /></ProtectedRoute>} />
-              <Route path="/whats-new" element={<ProtectedRoute><WhatsNew /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/welcome" element={<Navigate to="/auth" replace />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/" element={<ProtectedRoute><MemoryMapHome /></ProtectedRoute>} />
+                <Route path="/discover/memories/:id" element={<ProtectedRoute><JournalMemoryDetail /></ProtectedRoute>} />
+                <Route path="/journal" element={<ProtectedRoute><MemoriesLibrary /></ProtectedRoute>} />
+                <Route path="/account" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+                <Route path="/journal/memories/:id" element={<ProtectedRoute><MemoryDetail /></ProtectedRoute>} />
+                <Route path="/playlist" element={<ProtectedRoute><Playlist /></ProtectedRoute>} />
+                <Route path="/whats-new" element={<ProtectedRoute><WhatsNew /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </ErrorBoundary>
           </AudioSettingsProvider>
         </AuthProvider>
       </BrowserRouter>

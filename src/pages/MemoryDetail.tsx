@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import Map, { Marker, type MapStyle } from "react-map-gl/maplibre";
+import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserRound } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate, useParams } from "react-router-dom";
@@ -11,11 +10,12 @@ import type { Memory } from "@/types/memory";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-const detailMapStyle = (apiKey?: string): MapStyle => ({
-  version: 8,
-  sources: { base: { type: "raster", tiles: [apiKey ? `https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${apiKey}` : "https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256 } },
-  layers: [{ id: "base", type: "raster", source: "base", paint: { "raster-opacity": .66, "raster-saturation": -.5 } }],
-});
+// Static (non-WebGL) preview image, since this thumbnail is never interactive.
+// A real MapLibre map here would open a second concurrent WebGL context on
+// top of the map page underneath, which crashes on mobile GPUs.
+const staticMapPreviewUrl = (lng: number, lat: number, apiKey?: string) => apiKey
+  ? `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=290&height=252&center=lonlat:${lng},${lat}&zoom=13&marker=lonlat:${lng},${lat};color:%23f31e78;size:medium&apiKey=${apiKey}`
+  : null;
 
 type MemoryDetailProps = { overlay?: boolean; memoryOverride?: Memory | null; onClose?: () => void };
 
@@ -30,8 +30,8 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const memory = memoryOverride ?? memories.find((item) => item.id === id);
-  const mapStyle = useMemo(() => detailMapStyle(import.meta.env.VITE_GEOAPIFY_API_KEY), []);
   const hasLocation = typeof memory?.locationLat === "number" && typeof memory?.locationLng === "number";
+  const mapPreviewUrl = hasLocation ? staticMapPreviewUrl(memory!.locationLng!, memory!.locationLat!, import.meta.env.VITE_GEOAPIFY_API_KEY) : null;
   const memoryImages = memory ? memory.imageUrls?.length ? memory.imageUrls : [memory.imageUrl || "/landing/landing_02.png"] : [];
 
   const showImage = (index: number) => {
@@ -100,7 +100,7 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
 
       <button className="detail-location-card" onClick={() => navigate(`/?memory=${memory.id}`)} disabled={!hasLocation}>
         <div className="detail-map-preview">
-          {hasLocation ? <Map initialViewState={{ longitude: memory.locationLng!, latitude: memory.locationLat!, zoom: 11 }} mapStyle={mapStyle} interactive={false} attributionControl={false} style={{ width: "100%", height: "100%" }}><Marker longitude={memory.locationLng!} latitude={memory.locationLat!} anchor="bottom"><div className="detail-map-pin"><span aria-hidden="true">“</span></div></Marker></Map> : <MapPin />}
+          {mapPreviewUrl ? <img src={mapPreviewUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MapPin />}
         </div>
         <div className="detail-place-copy"><p><MapPin /><span>{memory.locationName || "No location saved"}</span></p><p><CalendarDays /><span>{format(new Date(`${memory.date}T12:00:00`), "MMMM d, yyyy")}</span></p></div>
         {hasLocation && <span className="see-on-map">See on map <ChevronRight /></span>}
