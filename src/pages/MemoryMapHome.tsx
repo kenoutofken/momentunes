@@ -55,24 +55,6 @@ const mobileCardVariants = {
     : { opacity: 1, y: 0, x: direction > 0 ? "-105%" : "105%" },
 };
 
-const fallbackMemory: Memory = {
-  id: "preview-memory",
-  title: "A sunset dinner with my friends",
-  description: "One of those evenings that felt like it could last forever.",
-  songTitle: "Sweet Disposition",
-  artist: "The Temper Trap",
-  date: "2026-06-14",
-  locationName: "Brooklyn, New York",
-  locationLat: 40.694,
-  locationLng: -73.92,
-  mood: "Joyful",
-  people: [],
-  isPublic: false,
-  imageUrl: "/landing/landing_02.png",
-  tags: [],
-  createdAt: "2026-06-14T19:30:00Z",
-};
-
 const getMapStyle = (apiKey?: string): MapStyle => apiKey ? ({
   version: 8,
   sources: {
@@ -243,10 +225,7 @@ const MemoryMapHome = () => {
     () => activeMapMemories.filter((memory) => typeof memory.locationLat === "number" && typeof memory.locationLng === "number"),
     [activeMapMemories],
   );
-  const displayMemories = useMemo(
-    () => locatedMemories.length || requestedProfileId || !mapDisplay.mine || mapDisplay.friends ? locatedMemories : [fallbackMemory],
-    [locatedMemories, mapDisplay.friends, mapDisplay.mine, requestedProfileId],
-  );
+  const displayMemories = locatedMemories;
   const latestLocatedMemory = useMemo(() => locatedMemories.reduce<Memory | null>((latest, memory) => {
     if (!latest) return memory;
     const memoryTime = new Date(memory.createdAt || `${memory.date}T12:00:00`).getTime();
@@ -618,7 +597,7 @@ const MemoryMapHome = () => {
           animate={isMobile ? "animate" : { opacity: 1, x: 0, scale: 1 }}
           exit={isMobile ? "exit" : { opacity: 0, x: 24, scale: 0.99 }}
           transition={{ duration: prefersReducedMotion ? 0 : isMobile ? 0.28 : 0.32, ease: [0.4, 0, 0.2, 1] }}
-          onClick={() => { if (!isMobile || selectedMemory.id === fallbackMemory.id) return; if (requestedProfileId || (selectedMemory.userId && selectedMemory.userId !== user?.id)) navigate(`/discover/memories/${selectedMemory.id}`); else setDetailMemory(selectedMemory); }}
+          onClick={() => { if (!isMobile) return; if (requestedProfileId || (selectedMemory.userId && selectedMemory.userId !== user?.id)) navigate(`/discover/memories/${selectedMemory.id}`); else setDetailMemory(selectedMemory); }}
           onTouchStart={(event) => { cardTouchStartX.current = event.touches[0]?.clientX ?? null; }}
           onTouchEnd={(event) => {
             const startX = cardTouchStartX.current;
@@ -701,7 +680,7 @@ const MemoryMapHome = () => {
       <QuickAddMemorySheet open={showForm} initialLocation={formInitialLocation} onOpenChange={(open) => { setShowForm(open); if (!open) setFormInitialLocation(null); }} onAdd={async (data) => { const saved = Boolean(await addMemory({ ...data, tags: data.tags ?? [] })); if (saved && formInitialLocation) completeMapAddHint(); return saved; }} />
       {detailMemory && <MemoryDetail overlay memoryOverride={detailMemory} onClose={() => setDetailMemory(null)} />}
       <QuickAddMemorySheet open={Boolean(editingMemory)} editingMemory={editingMemory} onOpenChange={(next) => { if (!next) setEditingMemory(null); }} onAdd={async (data) => { if (!editingMemory) return false; const saved = await updateMemory(editingMemory.id, { ...data, tags: data.tags ?? [] }); if (saved) setEditingMemory(null); return saved; }} />
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{selectedMemory?.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { if (!selectedMemory || selectedMemory.id === fallbackMemory.id) return; await deleteMemory(selectedMemory.id); setMemoryPanelOpen(false); setSelectedId(null); setActiveCollectionIds([]); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{selectedMemory?.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { if (!selectedMemory) return; await deleteMemory(selectedMemory.id); setMemoryPanelOpen(false); setSelectedId(null); setActiveCollectionIds([]); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <Sheet open={isMobile && filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="memories-filter-sheet">
           <SheetHeader><SheetTitle>Filter map memories</SheetTitle></SheetHeader>

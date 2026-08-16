@@ -23,12 +23,6 @@ const inspectorMapStyle = (apiKey?: string): MapStyle => ({
   layers: [{ id: "base", type: "raster", source: "base", paint: { "raster-opacity": .66, "raster-saturation": -.5 } }],
 });
 
-const fallbackMemories: Memory[] = [
-  { id: "demo-1", title: "Late night walk after grad", description: "", songTitle: "Dreams", artist: "Fleetwood Mac", date: "2025-05-24", locationName: "English Bay, Vancouver", mood: "Nostalgic", people: [], isPublic: false, imageUrl: "/landing/landing_01.png", tags: [], createdAt: "2025-05-24T20:00:00Z" },
-  { id: "demo-2", title: "A sunset dinner with my friends", description: "", songTitle: "Sweet Disposition", artist: "The Temper Trap", date: "2025-04-18", locationName: "Lisbon, Portugal", mood: "Joyful", people: [], isPublic: false, imageUrl: "/landing/landing_02.png", tags: [], createdAt: "2025-04-18T20:00:00Z" },
-  { id: "demo-3", title: "Windows down all the way home", description: "", songTitle: "Ribs", artist: "Lorde", date: "2025-03-09", locationName: "Sea to Sky Highway", mood: "Energized", people: [], isPublic: false, imageUrl: "/landing/landing_03.png", tags: [], createdAt: "2025-03-09T20:00:00Z" },
-];
-
 const MemoriesLibrary = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -55,15 +49,14 @@ const MemoriesLibrary = () => {
   const avatarUrl = currentProfile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
   const mapStyle = useMemo(() => inspectorMapStyle(import.meta.env.VITE_GEOAPIFY_API_KEY), []);
 
-  const sourceMemories = memories.length ? memories : fallbackMemories;
-  const filtered = useMemo(() => sourceMemories.filter((memory) => {
+  const filtered = useMemo(() => memories.filter((memory) => {
     const text = `${memory.title} ${memory.locationName ?? ""} ${memory.songTitle} ${memory.artist}`.toLowerCase();
     const memoryYear = new Date(`${memory.date}T12:00:00`).getFullYear();
     return text.includes(query.trim().toLowerCase())
       && (!yearFrom || memoryYear >= Number(yearFrom))
       && (!yearTo || memoryYear <= Number(yearTo))
       && (!favoritesOnly || favorites.has(memory.id));
-  }), [favorites, favoritesOnly, query, sourceMemories, yearFrom, yearTo]);
+  }), [favorites, favoritesOnly, memories, query, yearFrom, yearTo]);
 
   const toggleFavorite = (id: string) => {
     setFavorites((current) => {
@@ -76,7 +69,6 @@ const MemoriesLibrary = () => {
   };
 
   const openMemory = (memory: Memory) => {
-    if (memory.id.startsWith("demo-")) return;
     if (window.matchMedia("(min-width: 900px)").matches) setSelectedMemory(memory);
     else setDetailMemory(memory);
   };
@@ -138,7 +130,7 @@ const MemoriesLibrary = () => {
               <button type="button" className={`memory-favorite ${isFavorite ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); toggleFavorite(memory.id); }} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}><Star fill={isFavorite ? "currentColor" : "none"} /></button>
             </div>
           </article>;
-        }) : <div className="memories-empty"><Search /><strong>No memories found</strong><span>Try changing your search or filters.</span></div>}
+        }) : <div className="memories-empty">{memories.length ? <Search /> : <Heart />}<strong>{memories.length ? "No memories found" : "No memories yet"}</strong><span>{memories.length ? "Try changing your search or filters." : "Add your first memory to start mapping your story."}</span>{!memories.length && <button type="button" onClick={() => setShowAddMemory(true)}><Plus />Add your first memory</button>}</div>}
       </section>
     </div>
 
@@ -177,7 +169,7 @@ const MemoriesLibrary = () => {
         </div>
       </div>
     </motion.aside>}</AnimatePresence>
-    <AlertDialog open={deleteOpen} onOpenChange={(open) => { setDeleteOpen(open); if (!open) setDeletingMemory(null); }}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{deletingMemory?.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { if (!deletingMemory || deletingMemory.id.startsWith("demo-")) return; await deleteMemory(deletingMemory.id); if (selectedMemory?.id === deletingMemory.id) setSelectedMemory(null); setDeletingMemory(null); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <AlertDialog open={deleteOpen} onOpenChange={(open) => { setDeleteOpen(open); if (!open) setDeletingMemory(null); }}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{deletingMemory?.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { if (!deletingMemory) return; await deleteMemory(deletingMemory.id); if (selectedMemory?.id === deletingMemory.id) setSelectedMemory(null); setDeletingMemory(null); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </main>;
 };
 

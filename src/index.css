@@ -434,7 +434,7 @@ body {
 .memory-library-row { position: relative; display: grid; grid-template-columns: 112px minmax(0,1fr) 42px; gap: 15px; min-height: 136px; padding: 12px; border: 1px solid rgba(17,17,17,.06); border-radius: 22px; background: white; box-shadow: 0 8px 22px rgba(17,24,39,.08); cursor: pointer; transition: transform .18s, border-color .18s, box-shadow .18s; }.memory-library-row:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(17,24,39,.12); }.memory-library-row.selected { border-color: #f31e78; box-shadow: 0 0 0 2px #f31e78, 0 12px 28px rgba(243,30,120,.16); }.memory-library-row.selected:hover { box-shadow: 0 0 0 2px #f31e78, 0 14px 30px rgba(243,30,120,.2); }.memory-library-row > img { width: 112px; height: 112px; border-radius: 16px; object-fit: cover; }
 .memory-row-copy { min-width: 0; align-self: center; }.memory-row-copy h2 { display: grid; min-width: 0; grid-template-columns: auto minmax(0,1fr); align-items: start; margin: 0 0 9px; font-size: 18px; font-weight: 600; letter-spacing: -.025em; line-height: 1.15; }.memory-row-quote { margin: 1px 5px 0 0; color: #f31e78; font-family: Georgia, serif; font-size: 31px; font-weight: 700; line-height: .75; }.memory-row-title { display: -webkit-box; min-width: 0; overflow: hidden; color: inherit; font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.memory-row-copy p { display: flex; min-width: 0; align-items: center; gap: 7px; margin: 5px 0 0; color: #737373; font-size: 12px; }.memory-row-copy p svg { width: 14px; height: 14px; flex: none; color: #222; }.memory-row-copy p span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .memory-favorite { display: grid; width: 38px; height: 38px; place-items: center; align-self: start; border: 0; border-radius: 50%; background: #f4f4f4; color: #777; transition: background .15s, color .15s, transform .15s; }.memory-favorite:hover { transform: scale(1.05); }.memory-favorite.active { background: #ffe5f0; color: #f31e78; }.memory-favorite svg { width: 20px; }
-.memories-empty { display: flex; min-height: 240px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #888; text-align: center; }.memories-empty > svg { width: 28px; }.memories-empty strong { color: #222; }
+.memories-empty { display: flex; min-height: 240px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #888; text-align: center; }.memories-empty > svg { width: 28px; }.memories-empty strong { color: #222; }.memories-empty button { display: flex; align-items: center; gap: 7px; margin-top: 10px; padding: 11px 16px; border: 0; border-radius: 13px; background: #f31e78; color: white; font-size: 13px; font-weight: 750; }.memories-empty button svg { width: 17px; height: 17px; }
 .library-bottom-nav { position: fixed; z-index: 10; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; display: grid; grid-template-columns: repeat(4,1fr); width: min(660px, calc(100vw - 36px)); height: 76px; min-height: 76px; padding: 8px 10px; transform: translateX(-50%); border-radius: 28px; background: #171717; box-shadow: 0 15px 34px rgba(0,0,0,.24); }.library-bottom-nav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 20px; background: transparent; color: #929292; font-size: 11px; }.library-bottom-nav button:hover { color: white; background: #242424; }.library-bottom-nav button.active { background: white; color: #171717; box-shadow: 0 5px 14px rgba(0,0,0,.2); font-weight: 700; }.library-bottom-nav svg { width: 21px; height: 21px; }
 
 /* Friends */
@@ -743,12 +743,12 @@ body {
 .library-inspector-story .memory-title-row { display: block; }
 
 /* Friend discovery is a focused modal on every viewport. */
-.friends-add-dialog { width: min(540px, calc(100vw - 32px)); max-width: 540px; max-height: min(680px, calc(100dvh - 32px)); overflow: hidden; padding: 24px; border-radius: 24px; }
+.friends-add-dialog { width: min(540px, calc(100vw - 32px)); max-width: 540px; max-height: min(680px, calc(100dvh - 32px)); overflow: hidden; padding: 28px 40px; border-radius: 24px; }
 .friends-add-dialog .friends-people-search { margin-top: 8px; }
 .friends-add-dialog .friends-people-results { min-height: 180px; max-height: min(52dvh, 430px); }
 
 @media (max-width: 580px) {
-  .friends-add-dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 20px; border-radius: 22px; }
+  .friends-add-dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 20px 24px; border-radius: 22px; }
   .friends-add-dialog .friends-people-results { max-height: 52dvh; }
 }
 
