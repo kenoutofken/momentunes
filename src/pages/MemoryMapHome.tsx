@@ -161,7 +161,7 @@ const MemoryMapHome = () => {
     setFriendMapLoading(true);
     const loadFriendMap = async () => {
       const [{ data, error }, { data: owner, error: ownerError }] = await Promise.all([
-        supabase.from("memories").select("*").eq("user_id", requestedProfileId).eq("is_public", true).order("date", { ascending: false }),
+        supabase.from("memories").select("*").eq("user_id", requestedProfileId).order("date", { ascending: false }),
         supabase.from("profiles").select("user_id, username, display_name, avatar_url").eq("user_id", requestedProfileId).maybeSingle(),
       ]);
       if (cancelled) return;
@@ -199,14 +199,14 @@ const MemoryMapHome = () => {
     let cancelled = false;
     const loadFriendsMemories = async () => {
       setFriendsLoading(true);
-      const { data: follows, error: followsError } = await supabase.from("follows").select("following_id").eq("follower_id", user.id);
+      const { data: relationships, error: followsError } = await supabase.from("friendships").select("requester_id, recipient_id").eq("status", "accepted").or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
       if (cancelled) return;
       if (followsError) { toast.error("Could not load friends’ memories"); setFriendsLoading(false); return; }
-      const friendIds = (follows ?? []).map((follow) => follow.following_id);
+      const friendIds = (relationships ?? []).map((relationship) => relationship.requester_id === user.id ? relationship.recipient_id : relationship.requester_id);
       if (!friendIds.length) { setFriendsMemories([]); setFriendsLoading(false); return; }
       const [{ data: profiles }, { data: rows, error }] = await Promise.all([
         supabase.from("profiles").select("user_id, username, display_name, avatar_url").in("user_id", friendIds),
-        supabase.from("memories").select("*").in("user_id", friendIds).eq("is_public", true).order("date", { ascending: false }),
+        supabase.from("memories").select("*").in("user_id", friendIds).order("date", { ascending: false }),
       ]);
       if (cancelled) return;
       if (error) toast.error("Could not load friends’ memories");

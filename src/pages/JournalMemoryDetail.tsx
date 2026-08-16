@@ -95,14 +95,13 @@ const JournalMemoryDetail = () => {
     let cancelled = false;
 
     const fetchPublicMemory = async () => {
-      // Public detail pages are restricted to memories that are still marked public.
+      // RLS restricts this detail to the owner or an accepted friend.
       setPublicLoading(true);
       setPublicChecked(false);
       const { data, error } = await supabase
         .from("memories")
         .select("*")
         .eq("id", id)
-        .eq("is_public", true)
         .maybeSingle();
 
       if (cancelled) return;

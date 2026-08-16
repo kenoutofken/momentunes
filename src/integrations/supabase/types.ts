@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      friendships: {
+        Row: {
+          created_at: string
+          id: string
+          recipient_id: string
+          requester_id: string
+          responded_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          recipient_id: string
+          requester_id: string
+          responded_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          recipient_id?: string
+          requester_id?: string
+          responded_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       user_blocks: {
         Row: { blocked_id: string; blocker_id: string; created_at: string; id: string }
         Insert: { blocked_id: string; blocker_id: string; created_at?: string; id?: string }
@@ -253,7 +280,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      accept_friend_request: {
+        Args: { request_id: string }
+        Returns: Database["public"]["Tables"]["friendships"]["Row"]
+      }
     }
     Enums: {
       [_ in never]: never

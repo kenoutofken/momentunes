@@ -17,7 +17,8 @@ import { useRef } from "react";
 import MiniPlayer from "@/components/MiniPlayer";
 import MemoryPhotoGallery from "@/components/MemoryPhotoGallery";
 
-type FriendProfile = { userId: string; username: string; displayName: string | null; avatarUrl: string | null; followedAt?: string };
+type FriendProfile = { userId: string; username: string; displayName: string | null; avatarUrl: string | null; followedAt?: string; friendshipId?: string };
+type FriendRequest = FriendProfile & { requestId: string };
 type SortMode = "name" | "recent";
 const FRIEND_COLOR = "#3978d4";
 const friendMapStyle = (apiKey?: string): MapStyle => ({
@@ -32,6 +33,8 @@ const Friends = () => {
   const { profile: currentProfile } = useCurrentProfile();
   const { addMemory } = useMemories();
   const [friends, setFriends] = useState<FriendProfile[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequest[]>([]);
+  const [outgoingRequestIds, setOutgoingRequestIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("name");
@@ -58,17 +61,28 @@ const Friends = () => {
     if (!user) return;
     setLoading(true);
     try {
-      const { data: follows, error } = await supabase.from("follows").select("following_id, created_at").eq("follower_id", user.id);
+      const { data: relationships, error } = await supabase.from("friendships").select("id, requester_id, recipient_id, status, created_at").or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
       if (error) throw error;
-      const ids = (follows ?? []).map((follow) => follow.following_id);
-      if (!ids.length) { setFriends([]); return; }
+      const rows = relationships ?? [];
+      const ids = [...new Set(rows.map((relationship) => relationship.requester_id === user.id ? relationship.recipient_id : relationship.requester_id))];
+      setOutgoingRequestIds(new Set(rows.filter((relationship) => relationship.status === "pending" && relationship.requester_id === user.id).map((relationship) => relationship.recipient_id)));
+      if (!ids.length) { setFriends([]); setIncomingRequests([]); return; }
       const { data: profiles, error: profileError } = await supabase.from("profiles").select("user_id, username, display_name, avatar_url").in("user_id", ids);
       if (profileError) throw profileError;
-      const followedAt = new globalThis.Map((follows ?? []).map((follow) => [follow.following_id, follow.created_at]));
-      setFriends((profiles ?? []).filter((profile) => profile.username).map((profile) => ({ userId: profile.user_id, username: profile.username!, displayName: profile.display_name, avatarUrl: profile.avatar_url, followedAt: followedAt.get(profile.user_id) })));
+      const profileById = new globalThis.Map((profiles ?? []).filter((profile) => profile.username).map((profile) => [profile.user_id, profile]));
+      setFriends(rows.filter((relationship) => relationship.status === "accepted").flatMap((relationship) => {
+        const friendId = relationship.requester_id === user.id ? relationship.recipient_id : relationship.requester_id;
+        const profile = profileById.get(friendId);
+        return profile ? [{ userId: profile.user_id, username: profile.username!, displayName: profile.display_name, avatarUrl: profile.avatar_url, followedAt: relationship.created_at, friendshipId: relationship.id }] : [];
+      }));
+      setIncomingRequests(rows.filter((relationship) => relationship.status === "pending" && relationship.recipient_id === user.id).flatMap((relationship) => {
+        const profile = profileById.get(relationship.requester_id);
+        return profile ? [{ userId: profile.user_id, username: profile.username!, displayName: profile.display_name, avatarUrl: profile.avatar_url, requestId: relationship.id }] : [];
+      }));
     } catch (error) {
       console.error("Could not load friends", error);
       setFriends([]);
+      setIncomingRequests([]);
       toast.error("Could not load friends");
     } finally {
       setLoading(false);
@@ -100,6 +114,7 @@ const Friends = () => {
   }, [addOpen, blockedIds, peopleQuery, user]);
 
   const friendIds = useMemo(() => new Set(friends.map((friend) => friend.userId)), [friends]);
+  const incomingRequestIds = useMemo(() => new Set(incomingRequests.map((request) => request.userId)), [incomingRequests]);
   const visibleFriends = useMemo(() => {
     const term = query.trim().toLowerCase();
     return friends.filter((friend) => `${friend.username} ${friend.displayName ?? ""}`.toLowerCase().includes(term)).sort((a, b) => sortMode === "recent" ? (b.followedAt ?? "").localeCompare(a.followedAt ?? "") : (a.displayName || a.username).localeCompare(b.displayName || b.username));
@@ -117,7 +132,7 @@ const Friends = () => {
     setSelectedMemory(null);
     const loadFriendMemories = async () => {
       try {
-        const { data, error } = await supabase.from("memories").select("*").eq("user_id", selectedFriend.userId).eq("is_public", true).order("date", { ascending: false });
+        const { data, error } = await supabase.from("memories").select("*").eq("user_id", selectedFriend.userId).order("date", { ascending: false });
         if (error) throw error;
         if (cancelled) return;
         setFriendMemories((data ?? []).map((row): Memory => ({
@@ -148,12 +163,25 @@ const Friends = () => {
   }, [friendMemories]);
 
   const addFriend = async (profile: FriendProfile) => {
-    if (!user || friendIds.has(profile.userId)) return;
+    if (!user || friendIds.has(profile.userId) || outgoingRequestIds.has(profile.userId) || incomingRequestIds.has(profile.userId)) return;
     setSavingId(profile.userId);
-    const { error } = await supabase.from("follows").insert({ follower_id: user.id, following_id: profile.userId });
+    const { error } = await supabase.from("friendships").insert({ requester_id: user.id, recipient_id: profile.userId, status: "pending" });
     setSavingId(null);
     if (error) toast.error(error.message);
-    else { toast.success(`Added @${profile.username}`); await loadFriends(); }
+    else { toast.success(`Friend request sent to @${profile.username}`); await loadFriends(); }
+  };
+
+  const respondToRequest = async (request: FriendRequest, accept: boolean) => {
+    setSavingId(request.userId);
+    const { error } = accept
+      ? await supabase.rpc("accept_friend_request", { request_id: request.requestId })
+      : await supabase.from("friendships").delete().eq("id", request.requestId);
+    setSavingId(null);
+    if (error) toast.error(error.message);
+    else {
+      toast.success(accept ? `You and @${request.username} are now friends` : `Declined @${request.username}'s request`);
+      await loadFriends();
+    }
   };
 
   const confirmFriendAction = async () => {
@@ -162,9 +190,8 @@ const Friends = () => {
     setSavingId(friend.userId);
     const result = type === "block"
       ? await supabase.from("user_blocks").insert({ blocker_id: user.id, blocked_id: friend.userId })
-      : await supabase.from("follows").delete().eq("follower_id", user.id).eq("following_id", friend.userId);
+      : await supabase.from("friendships").delete().eq("id", friend.friendshipId!);
     if (!result.error && type === "block") {
-      await supabase.from("follows").delete().eq("follower_id", user.id).eq("following_id", friend.userId);
       setBlockedIds((current) => new Set(current).add(friend.userId));
     }
     setSavingId(null);
@@ -198,6 +225,17 @@ const Friends = () => {
     </DropdownMenu>
   </article>;
 
+  const requestRow = (request: FriendRequest) => <article className="friend-request-row" key={request.requestId}>
+    <div className="friend-request-identity">
+      {request.avatarUrl ? <img src={request.avatarUrl} alt="" /> : <span>{request.username.slice(0, 2).toUpperCase()}</span>}
+      <div><strong>@{request.username}</strong>{request.displayName && <small>{request.displayName}</small>}<em>Wants to be your friend</em></div>
+    </div>
+    <div className="friend-request-actions">
+      <button className="accept" disabled={savingId === request.userId} onClick={() => void respondToRequest(request, true)} aria-label={`Accept @${request.username}'s friend request`} title="Accept request">{savingId === request.userId ? <Loader2 className="animate-spin" /> : <Check />}</button>
+      <button className="decline" disabled={savingId === request.userId} onClick={() => void respondToRequest(request, false)} aria-label={`Decline @${request.username}'s friend request`} title="Decline request"><X /></button>
+    </div>
+  </article>;
+
   return <main className="friends-page">
     <aside className="desktop-map-sidebar desktop-library-sidebar">
       <button type="button" className="desktop-add-memory" onClick={() => setShowAddMemory(true)}><Plus /><span>Add memory</span></button>
@@ -211,7 +249,10 @@ const Friends = () => {
         <div className="friends-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search friends…" />{query && <button onClick={() => setQuery("")} aria-label="Clear search"><X /></button>}</div>
         <div className="friends-sort-wrap"><button className="friends-sort-button" onClick={() => setSortOpen((open) => !open)} aria-label="Sort friends"><ArrowUpDown /></button>{sortOpen && <div className="friends-sort-menu"><button onClick={() => { setSortMode("name"); setSortOpen(false); }}>{sortMode === "name" && <Check />}Name A–Z</button><button onClick={() => { setSortMode("recent"); setSortOpen(false); }}>{sortMode === "recent" && <Check />}Recently added</button></div>}</div>
       </header>
-      <section className="friends-list" aria-live="polite">{loading ? <div className="friends-empty"><Loader2 className="animate-spin" />Loading friends…</div> : visibleFriends.length ? visibleFriends.map(friendRow) : <div className="friends-empty"><UsersRound /><strong>{query ? "No friends found" : "Your people will appear here"}</strong><span>{query ? "Try a different search." : "Add friends and family to start sharing journeys."}</span>{!query && <button onClick={() => setAddOpen(true)}>Add your first friend</button>}</div>}</section>
+      <section className="friends-list" aria-live="polite">{loading ? <div className="friends-empty"><Loader2 className="animate-spin" />Loading friends…</div> : <>
+        {!query && incomingRequests.length > 0 && <section className="friend-requests"><div className="friend-requests-heading"><strong>Friend requests</strong><span>{incomingRequests.length}</span></div>{incomingRequests.map(requestRow)}</section>}
+        {visibleFriends.length ? visibleFriends.map(friendRow) : <div className="friends-empty"><UsersRound /><strong>{query ? "No friends found" : "Your people will appear here"}</strong><span>{query ? "Try a different search." : "Add friends and family to start sharing journeys."}</span>{!query && <button onClick={() => setAddOpen(true)}>Add your first friend</button>}</div>}
+      </>}</section>
     </div>
 
     <aside className="friends-map-pane" aria-label={selectedFriend ? `${selectedFriend.username}'s memory map` : "Friend memory map"}>
@@ -227,7 +268,7 @@ const Friends = () => {
         </Map>
         <div className="friends-map-owner">{selectedFriend.avatarUrl ? <img src={selectedFriend.avatarUrl} alt="" /> : <span>{selectedFriend.username.slice(0, 2).toUpperCase()}</span>}<div><strong>@{selectedFriend.username}</strong><small>{friendMemories.length} shared {friendMemories.length === 1 ? "memory" : "memories"}</small></div></div>
         {friendMemoriesLoading && <div className="friends-map-status"><Loader2 className="animate-spin" />Loading memories…</div>}
-        {!friendMemoriesLoading && !friendMemories.some((memory) => typeof memory.locationLat === "number" && typeof memory.locationLng === "number") && <div className="friends-map-status"><MapPin /><strong>No shared locations yet</strong><span>@{selectedFriend.username}'s public memories with locations will appear here.</span></div>}
+        {!friendMemoriesLoading && !friendMemories.some((memory) => typeof memory.locationLat === "number" && typeof memory.locationLng === "number") && <div className="friends-map-status"><MapPin /><strong>No shared locations yet</strong><span>@{selectedFriend.username}'s memories with locations will appear here.</span></div>}
         {selectedMemory && <article className="now-playing-memory friends-map-memory-preview">
           <div className="inspector-scroll-area">
             <div className="desktop-inspector-media">
@@ -247,7 +288,7 @@ const Friends = () => {
 
     <nav className="library-bottom-nav" aria-label="Primary navigation"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button className="active"><ContactRound /><span>Friends</span></button><button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button></nav>
 
-    <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) { setPeopleQuery(""); setPeople([]); } }}><DialogContent className="friends-add-dialog"><DialogHeader><DialogTitle>Add friend</DialogTitle><DialogDescription>Search by username or name to add someone to your map.</DialogDescription></DialogHeader><div className="friends-people-search"><Search /><input autoFocus value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Search by username or name…" /></div><div className="friends-people-results">{peopleLoading ? <Loader2 className="animate-spin" /> : people.map((person) => <div key={person.userId}><span className="friend-search-avatar">{person.avatarUrl ? <img src={person.avatarUrl} alt="" /> : person.username.slice(0,2).toUpperCase()}</span><span><strong>@{person.username}</strong>{person.displayName && <small>{person.displayName}</small>}</span><button disabled={friendIds.has(person.userId) || savingId === person.userId} onClick={() => void addFriend(person)}>{savingId === person.userId ? <Loader2 className="animate-spin" /> : friendIds.has(person.userId) ? <><UserCheck />Added</> : <><UserPlus />Add</>}</button></div>)}</div></DialogContent></Dialog>
+    <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) { setPeopleQuery(""); setPeople([]); } }}><DialogContent className="friends-add-dialog"><DialogHeader><DialogTitle>Add friend</DialogTitle><DialogDescription>Search by username or name to send a friend request.</DialogDescription></DialogHeader><div className="friends-people-search"><Search /><input autoFocus value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Search by username or name…" /></div><div className="friends-people-results">{peopleLoading ? <Loader2 className="animate-spin" /> : people.map((person) => { const isFriend = friendIds.has(person.userId); const isRequested = outgoingRequestIds.has(person.userId); const isIncoming = incomingRequestIds.has(person.userId); return <div key={person.userId}><span className="friend-search-avatar">{person.avatarUrl ? <img src={person.avatarUrl} alt="" /> : person.username.slice(0,2).toUpperCase()}</span><span><strong>@{person.username}</strong>{person.displayName && <small>{person.displayName}</small>}</span><button disabled={isFriend || isRequested || isIncoming || savingId === person.userId} onClick={() => void addFriend(person)}>{savingId === person.userId ? <Loader2 className="animate-spin" /> : isFriend ? <><UserCheck />Friends</> : isRequested ? <><Check />Requested</> : isIncoming ? <><UserCheck />Respond above</> : <><UserPlus />Request</>}</button></div>; })}</div></DialogContent></Dialog>
 
     <QuickAddMemorySheet open={showAddMemory} onOpenChange={setShowAddMemory} onAdd={async (data) => Boolean(await addMemory({ ...data, tags: data.tags ?? [] }))} />
 
