@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Camera, ChevronRight, ContactRound, Heart, KeyRound, Loader2, LogOut, Mail, Map as MapIcon, MapPin, Plus, Star, UserRound } from "lucide-react";
+import { Camera, ChevronRight, ContactRound, Heart, KeyRound, LifeBuoy, Loader2, LogOut, Mail, Map as MapIcon, MapPin, Plus, Star, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { compressImage } from "@/lib/compressImage";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const FAVORITES_KEY = "momentunes:favorite-memories";
 
@@ -30,6 +31,10 @@ const Profile = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportMessage, setSupportMessage] = useState("");
+  const [sendingSupport, setSendingSupport] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const displayName = profile?.display_name || user?.user_metadata?.display_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Music lover";
@@ -110,6 +115,23 @@ const Profile = () => {
     } finally { setSavingDisplayName(false); }
   };
 
+  const sendSupportRequest = async () => {
+    const subject = supportSubject.trim();
+    const message = supportMessage.trim();
+    if (!subject || !message) return;
+    setSendingSupport(true);
+    const { error } = await supabase.functions.invoke("contact-support", { body: { subject, message } });
+    setSendingSupport(false);
+    if (error) {
+      toast.error("Could not send your message. Please try again.");
+      return;
+    }
+    setSupportOpen(false);
+    setSupportSubject("");
+    setSupportMessage("");
+    toast.success("Your message was sent to support");
+  };
+
   return <main className="profile-page">
     <aside className="desktop-map-sidebar desktop-library-sidebar desktop-profile-sidebar">
       <button type="button" className="desktop-add-memory" onClick={() => navigate("/?add=true")}><Plus /><span>Add memory</span></button>
@@ -152,6 +174,13 @@ const Profile = () => {
         </div>
       </section>
 
+      <section className="profile-section">
+        <h3>Need help?</h3>
+        <div className="profile-link-group">
+          <button onClick={() => setSupportOpen(true)}><span><LifeBuoy />Contact support</span><ChevronRight /></button>
+        </div>
+      </section>
+
       <button className="profile-signout" onClick={async () => { await signOut(); navigate("/auth"); }}><LogOut />Sign out</button>
     </div>
 
@@ -166,6 +195,7 @@ const Profile = () => {
     <Dialog open={displayNameOpen} onOpenChange={setDisplayNameOpen}><DialogContent className="profile-name-dialog"><DialogHeader><DialogTitle>Change display name</DialogTitle></DialogHeader><Input value={displayNameDraft} onChange={(event) => setDisplayNameDraft(event.target.value)} maxLength={60} placeholder="Your display name" onKeyDown={(event) => { if (event.key === "Enter") saveDisplayName(); }} /><button className="profile-name-save" onClick={saveDisplayName} disabled={savingDisplayName || !displayNameDraft.trim()}>{savingDisplayName ? "Saving…" : "Save name"}</button></DialogContent></Dialog>
     <Dialog open={emailOpen} onOpenChange={setEmailOpen}><DialogContent className="profile-name-dialog"><DialogHeader><DialogTitle>Change email</DialogTitle></DialogHeader><p className="profile-dialog-copy">Supabase will send confirmation instructions. Your current email remains active until the change is verified.</p><Input type="email" value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} placeholder="New email address" onKeyDown={(event) => { if (event.key === "Enter") saveEmail(); }} /><button className="profile-name-save" onClick={saveEmail} disabled={savingEmail || !emailDraft.trim() || emailDraft.trim().toLowerCase() === user?.email?.toLowerCase()}>{savingEmail ? "Updating…" : "Update email"}</button></DialogContent></Dialog>
     <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}><DialogContent className="profile-name-dialog"><DialogHeader><DialogTitle>Change password</DialogTitle></DialogHeader><p className="profile-dialog-copy">Enter your current password, then choose a new password with at least 8 characters.</p><Input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} placeholder="Current password" /><Input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="New password" /><Input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Confirm new password" onKeyDown={(event) => { if (event.key === "Enter") savePassword(); }} /><button className="profile-name-save" onClick={savePassword} disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}>{savingPassword ? "Updating…" : "Update password"}</button></DialogContent></Dialog>
+    <Dialog open={supportOpen} onOpenChange={setSupportOpen}><DialogContent className="profile-name-dialog"><DialogHeader><DialogTitle>Contact support</DialogTitle></DialogHeader><p className="profile-dialog-copy">Tell us what happened and we’ll reply to {user?.email || "your account email"}.</p><Input value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} maxLength={120} placeholder="What do you need help with?" /><Textarea value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} maxLength={2000} rows={6} placeholder="Describe the issue, including what you expected to happen." /><button className="profile-name-save" onClick={sendSupportRequest} disabled={sendingSupport || !supportSubject.trim() || !supportMessage.trim()}>{sendingSupport ? "Sending…" : "Send message"}</button></DialogContent></Dialog>
   </main>;
 };
 
