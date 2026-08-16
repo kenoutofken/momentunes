@@ -597,7 +597,7 @@ const MemoryMapHome = () => {
           animate={isMobile ? "animate" : { opacity: 1, x: 0, scale: 1 }}
           exit={isMobile ? "exit" : { opacity: 0, x: 24, scale: 0.99 }}
           transition={{ duration: prefersReducedMotion ? 0 : isMobile ? 0.28 : 0.32, ease: [0.4, 0, 0.2, 1] }}
-          onClick={() => { if (!isMobile) return; if (requestedProfileId || (selectedMemory.userId && selectedMemory.userId !== user?.id)) navigate(`/discover/memories/${selectedMemory.id}`); else setDetailMemory(selectedMemory); }}
+          onClick={() => { if (!isMobile) return; setDetailMemory(selectedMemory); }}
           onTouchStart={(event) => { cardTouchStartX.current = event.touches[0]?.clientX ?? null; }}
           onTouchEnd={(event) => {
             const startX = cardTouchStartX.current;

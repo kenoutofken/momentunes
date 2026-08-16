@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import MiniPlayer from "@/components/MiniPlayer";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
+import { useAuth } from "@/contexts/AuthContext";
 import { useMemories } from "@/hooks/useMemories";
 import type { Memory } from "@/types/memory";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -22,6 +23,7 @@ type MemoryDetailProps = { overlay?: boolean; memoryOverride?: Memory | null; on
 const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: MemoryDetailProps) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { memories, loading, updateMemory, deleteMemory } = useMemories();
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -30,6 +32,7 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const memory = memoryOverride ?? memories.find((item) => item.id === id);
+  const isOwner = !memory?.userId || memory.userId === user?.id;
   const hasLocation = typeof memory?.locationLat === "number" && typeof memory?.locationLng === "number";
   const mapPreviewUrl = hasLocation ? staticMapPreviewUrl(memory!.locationLng!, memory!.locationLat!, import.meta.env.VITE_GEOAPIFY_API_KEY) : null;
   const memoryImages = memory ? memory.imageUrls?.length ? memory.imageUrls : [memory.imageUrl || "/landing/landing_02.png"] : [];
@@ -85,9 +88,9 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
         <div className="detail-menu-wrap">
           <button onClick={() => setMenuOpen((open) => !open)} aria-label="Memory options"><MoreHorizontal /></button>
           {menuOpen && <div className="detail-overflow-menu">
-            <button onClick={() => { setEditing(memory); setMenuOpen(false); }}><Pencil />Edit memory</button>
+            {isOwner && <button onClick={() => { setEditing(memory); setMenuOpen(false); }}><Pencil />Edit memory</button>}
             <button onClick={shareMemory}><Share2 />Share</button>
-            <button className="danger" onClick={() => { setDeleteOpen(true); setMenuOpen(false); }}><Trash2 />Delete</button>
+            {isOwner && <button className="danger" onClick={() => { setDeleteOpen(true); setMenuOpen(false); }}><Trash2 />Delete</button>}
           </div>}
         </div>
       </header>
