@@ -763,7 +763,7 @@ body {
 
   .friends-page { padding-right: 24px; padding-left: 300px; }
   .friends-shell { width: 100%; max-width: 1200px; margin: 0; padding: 22px 0 48px 8px; }
-  .friends-header { width: min(656px, 100%); grid-template-areas: "search sort add"; grid-template-columns: minmax(0, 520px) 54px 54px; gap: 14px; margin: 0; padding-bottom: 34px; }
+  .friends-header { width: min(588px, 100%); grid-template-areas: "search sort add"; grid-template-columns: minmax(0, 452px) 54px 54px; gap: 14px; margin: 0; padding-bottom: 34px; }
   .friends-header .friends-search { grid-area: search; }
   .friends-header .friends-sort-wrap { grid-area: sort; }
   .friends-header .friends-add-button { grid-area: add; }
@@ -855,9 +855,9 @@ body {
 /* Desktop Friends master-detail workspace. */
 .friends-map-pane { display: none; }
 @media (min-width: 900px) {
-  .friends-page { --friends-sidebar-width: 300px; --friends-column-width: min(682px, calc(100vw - var(--friends-sidebar-width) - 360px)); height: 100dvh; overflow: hidden; padding: 0 0 0 var(--friends-sidebar-width); }
+  .friends-page { --friends-sidebar-width: 300px; --friends-column-width: min(614px, calc(100vw - var(--friends-sidebar-width) - 360px)); height: 100dvh; overflow: hidden; padding: 0 0 0 var(--friends-sidebar-width); }
   .friends-shell { width: var(--friends-column-width); max-width: none; height: 100dvh; margin: 0; padding: 22px 18px 40px 8px; overflow-y: auto; }
-  .friends-header { width: 100%; max-width: 656px; }
+  .friends-header { width: 100%; max-width: 588px; }
   .friends-list { display: flex; width: 100%; grid-template-columns: none; flex-direction: column; gap: 12px; }
   .friend-requests { margin-bottom: 2px; }
   .friend-request-row { min-height: 72px; padding: 8px 10px; }
