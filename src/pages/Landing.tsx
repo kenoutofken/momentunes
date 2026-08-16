@@ -74,8 +74,9 @@ const Landing = ({ onGetStarted, onSignIn }: LandingProps) => {
   return (
     <main className="momentunes-landing">
       <header className="landing-brand"><BrandMark /></header>
-      <div className="absolute inset-0 overflow-hidden" ref={emblaRef}>
-        <div className="flex h-full">
+      <section className="landing-layout">
+      <div className="landing-art-viewport" ref={emblaRef}>
+        <div className="landing-art-track">
           {slides.map((slide, i) => (
             <div key={i} className="landing-slide">
               <LandingIllustration scene={slide.scene} />
@@ -127,6 +128,7 @@ const Landing = ({ onGetStarted, onSignIn }: LandingProps) => {
           </div>
         </div>
       </div>
+      </section>
     </main>
   );
 };
