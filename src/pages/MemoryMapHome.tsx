@@ -90,7 +90,7 @@ const getMapStyle = (apiKey?: string): MapStyle => apiKey ? ({
 
 const MemoryMapHome = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile(900);
   const prefersReducedMotion = useReducedMotion();
   const { user } = useAuth();
@@ -102,6 +102,7 @@ const MemoryMapHome = () => {
   const mapLocationRequestRef = useRef(0);
   const mapHintTimerRef = useRef<number | null>(null);
   const mapHintDismissTimerRef = useRef<number | null>(null);
+  const forcedTourRef = useRef(false);
   const { memories, loading, addMemory, updateMemory, deleteMemory } = useMemories();
   const requestedMemoryId = searchParams.get("memory");
   const requestedProfileId = searchParams.get("profile");
@@ -305,14 +306,25 @@ const MemoryMapHome = () => {
   }, [searchParams]);
 
   useEffect(() => {
+    // Captured into a ref (rather than read from searchParams every run) and
+    // stripped from the URL immediately, so finishing the tour — which flips
+    // tourOpen and re-runs this effect — can't see "?tour=1" as still forced
+    // and reopen it forever.
+    if (searchParams.get("tour") !== "1") return;
+    forcedTourRef.current = true;
+    setSearchParams((current) => { const next = new URLSearchParams(current); next.delete("tour"); return next; }, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
     if (!mapLoaded || !user || tourOpen || showForm || memoryPanelOpen || searchOpen || filtersOpen || mapDraftLocation) return;
-    const forced = searchParams.get("tour") === "1";
+    const forced = forcedTourRef.current;
     let alreadySeen = false;
     try { alreadySeen = localStorage.getItem(`${ONBOARDING_TOUR_KEY}:${user.id}`) === "true"; } catch { /* The tour can still run without persistence. */ }
     if (!forced && alreadySeen) return;
+    forcedTourRef.current = false;
     const timer = window.setTimeout(() => setTourOpen(true), 600);
     return () => window.clearTimeout(timer);
-  }, [filtersOpen, mapDraftLocation, mapLoaded, memoryPanelOpen, searchOpen, searchParams, showForm, tourOpen, user]);
+  }, [filtersOpen, mapDraftLocation, mapLoaded, memoryPanelOpen, searchOpen, showForm, tourOpen, user]);
 
   const finishTour = () => {
     setTourOpen(false);
