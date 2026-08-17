@@ -189,6 +189,8 @@ const Profile = () => {
 
     </div>
 
+    <div className="memories-bottom-fade" aria-hidden="true" />
+
     <nav className="library-bottom-nav" aria-label="Primary navigation">
       <button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button>
       <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
