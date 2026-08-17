@@ -284,6 +284,17 @@ export type Database = {
         Args: { request_id: string }
         Returns: Database["public"]["Tables"]["friendships"]["Row"]
       }
+      get_memory_access_info: {
+        Args: { target_memory_id: string }
+        Returns: {
+          owner_id: string
+          owner_username: string | null
+          owner_display_name: string | null
+          owner_avatar_url: string | null
+          friendship_id: string | null
+          friendship_status: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

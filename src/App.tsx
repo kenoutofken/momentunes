@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AudioSettingsProvider } from "@/contexts/AudioSettingsContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -24,8 +24,10 @@ const queryClient = new QueryClient();
 // Keeps all app pages behind authentication while still letting the auth page load publicly.
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
-  if (!user) return <Navigate to="/auth" replace />;
+  // Preserves where the user was headed (e.g. a shared memory link) so Auth can send them back after login.
+  if (!user) return <Navigate to="/auth" replace state={{ from: location }} />;
   return <>{children}</>;
 };
 

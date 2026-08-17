@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import Landing from "./Landing";
@@ -47,14 +47,18 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [storyIndex, setStoryIndex] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const normalizedUsername = username.trim().toLowerCase();
 
-  // Authenticated users should not stay on the login/signup screens.
+  // Authenticated users should not stay on the login/signup screens. If they were
+  // redirected here from a protected page (e.g. a shared memory link), send them back.
   useEffect(() => {
-    if (user) navigate("/", { replace: true });
-  }, [user, navigate]);
+    if (!user) return;
+    const from = (location.state as { from?: { pathname: string; search?: string } } | null)?.from;
+    navigate(from ? `${from.pathname}${from.search ?? ""}` : "/", { replace: true });
+  }, [user, navigate, location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
