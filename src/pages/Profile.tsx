@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Camera, ChevronRight, ContactRound, Heart, KeyRound, LifeBuoy, Loader2, LogOut, Mail, Map as MapIcon, MapPin, Plus, Star, UserRound } from "lucide-react";
+import { Camera, ChevronRight, Compass, ContactRound, Heart, KeyRound, LifeBuoy, Loader2, LogOut, Mail, Map as MapIcon, MapPin, Plus, Star, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -177,6 +177,7 @@ const Profile = () => {
       <section className="profile-section">
         <h3>Need help?</h3>
         <div className="profile-link-group">
+          <button onClick={() => navigate("/?tour=1")}><span><Compass />Show me around again</span><ChevronRight /></button>
           <button onClick={() => setSupportOpen(true)}><span><LifeBuoy />Contact support</span><ChevronRight /></button>
         </div>
       </section>

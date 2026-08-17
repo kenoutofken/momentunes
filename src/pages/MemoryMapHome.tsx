@@ -20,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import MemoryDetail from "@/pages/MemoryDetail";
+import OnboardingTour, { type TourStep } from "@/components/OnboardingTour";
 
 const DEFAULT_CENTER = { longitude: -73.92, latitude: 40.7, zoom: 9.25 };
 type MemoryClusterProperties = { memoryId?: string };
@@ -29,6 +30,14 @@ const MAP_DISPLAY_KEY = "momentunes:map-display";
 const FRIEND_COLOR = "#3978d4";
 const MAP_ADD_HINT_KEY = "momentunes:map-add-hint-seen";
 type MapAddHintState = { visitsShown: number; lastShown?: string; dismissedUntil?: number; completed?: boolean };
+const ONBOARDING_TOUR_KEY = "momentunes:onboarding-tour-seen";
+const TOUR_STEPS: TourStep[] = [
+  { selector: "[data-tour='add']", title: "Add a memory", description: "Save a photo, place, date, and song together." },
+  { selector: "[data-tour='search']", title: "Search your memories", description: "Find any memory by title, song, or place." },
+  { selector: "[data-tour='filter']", title: "Filter what you see", description: "Show just your memories, friends’ memories, or narrow by year and favorites." },
+  { selector: "[data-tour='friends']", title: "Connect with friends", description: "Add friends and see the memories they’ve shared with you." },
+  { selector: "[data-tour='account']", title: "Your account", description: "Update your profile photo, name, and settings here." },
+];
 
 const readMapAddHintState = (): MapAddHintState => {
   try {
@@ -133,6 +142,7 @@ const MemoryMapHome = () => {
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [detailMemory, setDetailMemory] = useState<Memory | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
   const displayName = currentProfile?.display_name || user?.user_metadata?.display_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Your profile";
   const username = currentProfile?.username || user?.user_metadata?.username || user?.email?.split("@")[0] || "";
   const avatarUrl = currentProfile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
@@ -295,6 +305,22 @@ const MemoryMapHome = () => {
   }, [searchParams]);
 
   useEffect(() => {
+    if (!mapLoaded || !user || tourOpen || showForm || memoryPanelOpen || searchOpen || filtersOpen || mapDraftLocation) return;
+    const forced = searchParams.get("tour") === "1";
+    let alreadySeen = false;
+    try { alreadySeen = localStorage.getItem(`${ONBOARDING_TOUR_KEY}:${user.id}`) === "true"; } catch { /* The tour can still run without persistence. */ }
+    if (!forced && alreadySeen) return;
+    const timer = window.setTimeout(() => setTourOpen(true), 600);
+    return () => window.clearTimeout(timer);
+  }, [filtersOpen, mapDraftLocation, mapLoaded, memoryPanelOpen, searchOpen, searchParams, showForm, tourOpen, user]);
+
+  const finishTour = () => {
+    setTourOpen(false);
+    if (!user) return;
+    try { localStorage.setItem(`${ONBOARDING_TOUR_KEY}:${user.id}`, "true"); } catch { /* Tour completion can remain session-only. */ }
+  };
+
+  useEffect(() => {
     if (!mapLoaded || mapLoading || selectedId || !latestLocatedMemory || !mapRef.current) return;
     mapRef.current.easeTo({
       center: [latestLocatedMemory.locationLng!, latestLocatedMemory.locationLat!],
@@ -304,7 +330,7 @@ const MemoryMapHome = () => {
   }, [latestLocatedMemory, mapLoading, mapLoaded, selectedId]);
 
   useEffect(() => {
-    if (!mapLoaded || memoryPanelOpen || showForm || searchOpen || filtersOpen) return;
+    if (!mapLoaded || memoryPanelOpen || showForm || searchOpen || filtersOpen || tourOpen) return;
     const hintState = readMapAddHintState();
     const today = format(new Date(), "yyyy-MM-dd");
     if (hintState.completed || hintState.visitsShown >= 3 || hintState.lastShown === today || (hintState.dismissedUntil ?? 0) > Date.now()) return;
@@ -319,7 +345,7 @@ const MemoryMapHome = () => {
       if (mapHintTimerRef.current !== null) window.clearTimeout(mapHintTimerRef.current);
       mapHintTimerRef.current = null;
     };
-  }, [filtersOpen, mapLoaded, memoryPanelOpen, searchOpen, showForm]);
+  }, [filtersOpen, mapLoaded, memoryPanelOpen, searchOpen, showForm, tourOpen]);
 
   useEffect(() => () => {
     if (mapHintTimerRef.current !== null) window.clearTimeout(mapHintTimerRef.current);
@@ -517,16 +543,16 @@ const MemoryMapHome = () => {
       </div>}
 
       <header className="map-header">
-        <button type="button" className="add-memory-pill" title={isMobile ? "Add a memory, or long-press the map to choose a place" : "Add a memory, or right-click the map to choose a place"} aria-label={isMobile ? "Add memory. You can also long-press the map to choose a place." : "Add memory. You can also right-click the map to choose a place."} onClick={() => { setMapDraftLocation(null); setFormInitialLocation(null); setShowForm(true); }}>
+        <button type="button" data-tour="add" className="add-memory-pill" title={isMobile ? "Add a memory, or long-press the map to choose a place" : "Add a memory, or right-click the map to choose a place"} aria-label={isMobile ? "Add memory. You can also long-press the map to choose a place." : "Add memory. You can also right-click the map to choose a place."} onClick={() => { setMapDraftLocation(null); setFormInitialLocation(null); setShowForm(true); }}>
           <Plus size={23} strokeWidth={2.2} />
           <span>Add</span>
         </button>
-        <div className="mobile-map-search">
+        <div data-tour="search" className="mobile-map-search">
           <Search size={22} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search memories…" aria-label="Search memories" />
           {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X size={17} /></button>}
         </div>
-        <button type="button" className={`map-filter-button ${yearFrom || yearTo || favoritesOnly || displayFilterActive ? "active" : ""}`} onClick={() => setFiltersOpen(true)} aria-label="Filter map memories"><SlidersHorizontal /></button>
+        <button type="button" data-tour="filter" className={`map-filter-button ${yearFrom || yearTo || favoritesOnly || displayFilterActive ? "active" : ""}`} onClick={() => setFiltersOpen(true)} aria-label="Filter map memories"><SlidersHorizontal /></button>
       </header>
 
       {isMobile && focusedMapFriend && <div className="mobile-friend-map-owner" aria-label={`Viewing @${focusedMapFriend.username}'s map`}>
@@ -539,12 +565,12 @@ const MemoryMapHome = () => {
       </div>}
 
       <aside className="desktop-map-sidebar">
-        <button type="button" className="desktop-add-memory" title="Add a memory, or right-click the map to choose a place" onClick={() => { setMapDraftLocation(null); setFormInitialLocation(null); setShowForm(true); }}><Plus /><span>Add memory</span></button>
+        <button type="button" data-tour="add" className="desktop-add-memory" title="Add a memory, or right-click the map to choose a place" onClick={() => { setMapDraftLocation(null); setFormInitialLocation(null); setShowForm(true); }}><Plus /><span>Add memory</span></button>
         <nav className="desktop-map-nav" aria-label="Desktop navigation">
           <button className="active"><MapIcon /><span>Map</span></button>
           <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-          <button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
-          <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
+          <button data-tour="friends" onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
+          <button data-tour="account" onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
         </nav>
         <div className="desktop-account-wrap">
           <button type="button" className="desktop-account" onClick={() => navigate("/account")}>
@@ -570,13 +596,13 @@ const MemoryMapHome = () => {
           <button className="apply-memory-filters" onClick={() => { setFiltersOpen(false); if (selectedId && !visibleMemories.some((memory) => memory.id === selectedId)) { setSelectedId(null); setMemoryPanelOpen(false); setActiveCollectionIds([]); } }}>Show on map</button>
         </div>}
       </div> : <div className="desktop-standard-map-tools" onClick={(event) => event.stopPropagation()}>
-        <div className="desktop-map-search">
+        <div data-tour="search" className="desktop-map-search">
           <Search />
           <input value={query} onFocus={() => setFiltersOpen(false)} onChange={(event) => { setFiltersOpen(false); setQuery(event.target.value); }} placeholder="Search memories…" aria-label="Search memories" />
           {query && <button onClick={() => setQuery("")} aria-label="Clear search"><X /></button>}
           {query && <div className="desktop-search-results">{filteredMemories.length ? filteredMemories.slice(0, 6).map((memory) => <button key={memory.id} onClick={() => selectMemory(memory)}><strong>{memory.title}</strong><span>{memory.songTitle} · {memory.locationName}</span></button>) : <p>No memories found.</p>}</div>}
         </div>
-        <button type="button" className={`desktop-map-filter ${yearFrom || yearTo || favoritesOnly || displayFilterActive ? "active" : ""}`} onClick={() => { setSearchOpen(false); setFiltersOpen((open) => !open); }} aria-label="Filter map memories"><SlidersHorizontal /></button>
+        <button type="button" data-tour="filter" className={`desktop-map-filter ${yearFrom || yearTo || favoritesOnly || displayFilterActive ? "active" : ""}`} onClick={() => { setSearchOpen(false); setFiltersOpen((open) => !open); }} aria-label="Filter map memories"><SlidersHorizontal /></button>
         {filtersOpen && <div className="desktop-map-filter-card">
           <div className="desktop-filter-card-header"><strong>Filter memories</strong><button type="button" disabled={allFiltersDefault} onClick={clearMapFilters}>Clear</button></div>
           {mapDisplayControls}
@@ -673,12 +699,13 @@ const MemoryMapHome = () => {
       <nav className="map-bottom-nav" aria-label="Primary navigation">
         <button className="active"><MapIcon /><span>Map</span></button>
         <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-        <button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
-        <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
+        <button data-tour="friends" onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
+        <button data-tour="account" onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
       </nav>
 
       <QuickAddMemorySheet open={showForm} initialLocation={formInitialLocation} onOpenChange={(open) => { setShowForm(open); if (!open) setFormInitialLocation(null); }} onAdd={async (data) => { const saved = Boolean(await addMemory({ ...data, tags: data.tags ?? [] })); if (saved && formInitialLocation) completeMapAddHint(); return saved; }} />
       {detailMemory && <MemoryDetail overlay memoryOverride={detailMemory} onClose={() => setDetailMemory(null)} />}
+      {tourOpen && <OnboardingTour steps={TOUR_STEPS} onFinish={finishTour} />}
       <QuickAddMemorySheet open={Boolean(editingMemory)} editingMemory={editingMemory} onOpenChange={(next) => { if (!next) setEditingMemory(null); }} onAdd={async (data) => { if (!editingMemory) return false; const saved = await updateMemory(editingMemory.id, { ...data, tags: data.tags ?? [] }); if (saved) setEditingMemory(null); return saved; }} />
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{selectedMemory?.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { if (!selectedMemory) return; await deleteMemory(selectedMemory.id); setMemoryPanelOpen(false); setSelectedId(null); setActiveCollectionIds([]); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <Sheet open={isMobile && filtersOpen} onOpenChange={setFiltersOpen}>
