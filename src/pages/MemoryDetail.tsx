@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Clock, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserPlus, UserRound } from "lucide-react";
 import { format } from "date-fns";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import MiniPlayer from "@/components/MiniPlayer";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMemories } from "@/hooks/useMemories";
+import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import type { Memory } from "@/types/memory";
 import { supabase } from "@/integrations/supabase/client";
+import { shareMemory } from "@/lib/shareMemory";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -33,7 +35,9 @@ type MemoryDetailProps = { overlay?: boolean; memoryOverride?: Memory | null; on
 const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: MemoryDetailProps) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const friendRequestCount = useFriendRequestCount();
   const { memories, loading, updateMemory, deleteMemory } = useMemories();
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -143,13 +147,9 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
     setAccessInfo(null);
   };
 
-  const shareMemory = async () => {
+  const handleShare = async () => {
     if (!memory) return;
-    const url = `${window.location.origin}/journal/memories/${memory.id}`;
-    try {
-      if (navigator.share) await navigator.share({ title: memory.title, text: `${memory.title} — ${memory.songTitle} by ${memory.artist}`, url });
-      else { await navigator.clipboard.writeText(url); toast.success("Memory link copied"); }
-    } catch (error) { if ((error as Error).name !== "AbortError") toast.error("Could not share memory"); }
+    await shareMemory(memory);
     setMenuOpen(false);
   };
 
@@ -182,7 +182,7 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
           <button onClick={() => setMenuOpen((open) => !open)} aria-label="Memory options"><MoreHorizontal /></button>
           {menuOpen && <div className="detail-overflow-menu">
             {isOwner && <button onClick={() => { setEditing(memory); setMenuOpen(false); }}><Pencil />Edit memory</button>}
-            <button onClick={shareMemory}><Share2 />Share</button>
+            <button onClick={handleShare}><Share2 />Share</button>
             {isOwner && <button className="danger" onClick={() => { setDeleteOpen(true); setMenuOpen(false); }}><Trash2 />Delete</button>}
           </div>}
         </div>
@@ -192,14 +192,13 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
         {memoryImages.slice(0, 4).map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => showImage(index)} aria-label={`View photo ${index + 1} of ${memoryImages.length} full size`}><img src={image} alt="" style={{ objectPosition: `${memory.imageFocusPoints?.[index]?.x ?? 50}% ${memory.imageFocusPoints?.[index]?.y ?? 50}%` }} />{index === 3 && memoryImages.length > 4 && <span className="detail-more-photos">+{memoryImages.length - 4}<small>more</small></span>}</button>)}
       </section>
 
-      <section className="detail-title"><h1>{memory.title}</h1></section>
+      <section className="detail-title"><span className="detail-title-quote" aria-hidden="true">“</span><h1>{memory.title}</h1></section>
 
-      <button className="detail-location-card" onClick={() => navigate(`/?memory=${memory.id}`)} disabled={!hasLocation}>
+      <button className="detail-location-card" onClick={() => (overlay && location.pathname === "/") ? onClose?.() : navigate(`/?memory=${memory.id}`)} disabled={!hasLocation}>
         <div className="detail-map-preview">
           {mapPreviewUrl ? <img src={mapPreviewUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MapPin />}
         </div>
         <div className="detail-place-copy"><p><MapPin /><span>{memory.locationName || "No location saved"}</span></p><p><CalendarDays /><span>{format(new Date(`${memory.date}T12:00:00`), "MMMM d, yyyy")}</span></p></div>
-        {hasLocation && <span className="see-on-map">See on map <ChevronRight /></span>}
       </button>
 
       <section className="detail-music-card"><MiniPlayer songTitle={memory.songTitle} artist={memory.artist} variant="map" /></section>
@@ -208,7 +207,7 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
     <nav className="library-bottom-nav" aria-label="Primary navigation">
       <button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button>
       <button className="active" onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-      <button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
+      <button onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
       <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
     </nav>
 

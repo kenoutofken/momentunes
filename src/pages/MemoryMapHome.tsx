@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Marker, NavigationControl, type MapRef, type MapStyle } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { format } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Plus, Search, SlidersHorizontal, Star, Trash2, UserRound, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Plus, Search, Share2, SlidersHorizontal, Star, Trash2, UserRound, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMemories } from "@/hooks/useMemories";
 import type { Memory } from "@/types/memory";
@@ -16,11 +16,14 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Supercluster from "supercluster";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import MemoryDetail from "@/pages/MemoryDetail";
 import OnboardingTour, { type TourStep } from "@/components/OnboardingTour";
+import MarqueeTitle from "@/components/MarqueeTitle";
+import { shareMemory } from "@/lib/shareMemory";
 
 const DEFAULT_CENTER = { longitude: -73.92, latitude: 40.7, zoom: 9.25 };
 type MemoryClusterProperties = { memoryId?: string };
@@ -95,6 +98,7 @@ const MemoryMapHome = () => {
   const prefersReducedMotion = useReducedMotion();
   const { user } = useAuth();
   const { profile: currentProfile } = useCurrentProfile();
+  const friendRequestCount = useFriendRequestCount();
   const mapRef = useRef<MapRef | null>(null);
   const cardTouchStartX = useRef<number | null>(null);
   const mapLongPressTimerRef = useRef<number | null>(null);
@@ -581,7 +585,7 @@ const MemoryMapHome = () => {
         <nav className="desktop-map-nav" aria-label="Desktop navigation">
           <button className="active"><MapIcon /><span>Map</span></button>
           <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-          <button data-tour="friends" onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
+          <button data-tour="friends" onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
           <button data-tour="account" onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
         </nav>
         <div className="desktop-account-wrap">
@@ -647,7 +651,7 @@ const MemoryMapHome = () => {
           }}
         >
           {isMobile ? <>
-            <img src={selectedMemory.imageUrl || "/landing/landing_02.png"} alt="" className="memory-cover" style={{ objectPosition: `${selectedMemory.imageFocusPoints?.[0]?.x ?? 50}% ${selectedMemory.imageFocusPoints?.[0]?.y ?? 50}%` }} />
+            <div className="memory-cover-frame"><img src={selectedMemory.imageUrl || "/landing/landing_02.png"} alt="" className="memory-cover" style={{ objectPosition: `${selectedMemory.imageFocusPoints?.[0]?.x ?? 50}% ${selectedMemory.imageFocusPoints?.[0]?.y ?? 50}%` }} /></div>
             {sharedLocationMemories.length > 1 && <div className="memory-carousel-arrows" onClick={(event) => event.stopPropagation()}>
               <button disabled={sharedLocationIndex === 0} onClick={() => selectAdjacentLocationMemory(-1)} aria-label="Previous memory"><ChevronLeft /></button>
               <span aria-live="polite" aria-atomic="true">{sharedLocationIndex + 1} of {sharedLocationMemories.length}</span>
@@ -655,10 +659,10 @@ const MemoryMapHome = () => {
             </div>}
             <div className="memory-story">
               {selectedMemory.userId && selectedMemory.userId !== user?.id && <p className="memory-owner">{selectedMemory.avatarUrl ? <img src={selectedMemory.avatarUrl} alt="" /> : <span style={{ backgroundColor: FRIEND_COLOR }}>{(selectedMemory.displayName || selectedMemory.username || "Friend").slice(0,2).toUpperCase()}</span>}<strong>{selectedMemory.displayName || `@${selectedMemory.username || "friend"}`}</strong></p>}
-              <div className="memory-title-row"><h1>{selectedMemory.title}</h1></div>
-              <div className="memory-meta">
-                <p className="memory-location" title={selectedMemory.locationName || "Somewhere special"}>{selectedMemory.locationName || "Somewhere special"}</p>
-                <time dateTime={selectedMemory.date}>{format(new Date(`${selectedMemory.date}T12:00:00`), "MMM d, yyyy")}</time>
+              <MarqueeTitle key={selectedMemory.id} text={selectedMemory.title} className="memory-title-marquee" />
+              <div className="memory-meta-card">
+                <p className="memory-location" title={selectedMemory.locationName || "Somewhere special"}><MapPin /><span>{selectedMemory.locationName || "Somewhere special"}</span></p>
+                <p className="memory-date"><CalendarDays /><time dateTime={selectedMemory.date}>{format(new Date(`${selectedMemory.date}T12:00:00`), "MMM d, yyyy")}</time></p>
               </div>
               <div onClick={(event) => event.stopPropagation()}><MiniPlayer key={`${selectedMemory.id}:${selectedMemory.songTitle}:${selectedMemory.artist}`} songTitle={selectedMemory.songTitle} artist={selectedMemory.artist} variant="map" /></div>
             </div>
@@ -681,13 +685,14 @@ const MemoryMapHome = () => {
               <div className="desktop-inspector-media">
                 <MemoryPhotoGallery memory={selectedMemory} />
                 <div className="desktop-inspector-actions" onClick={(event) => event.stopPropagation()}>
-                  {!requestedProfileId && (!selectedMemory.userId || selectedMemory.userId === user?.id) && <div className="desktop-inspector-menu-wrap">
+                  <div className="desktop-inspector-menu-wrap">
                     <button onClick={() => setInspectorMenuOpen((current) => !current)} aria-label="Memory actions"><MoreHorizontal /></button>
                     {inspectorMenuOpen && <div className="desktop-inspector-menu">
-                      <button onClick={() => { setInspectorMenuOpen(false); setEditingMemory(selectedMemory); }}><Pencil />Edit memory</button>
-                      <button className="danger" onClick={() => { setInspectorMenuOpen(false); setDeleteOpen(true); }}><Trash2 />Delete memory</button>
+                      {!requestedProfileId && (!selectedMemory.userId || selectedMemory.userId === user?.id) && <button onClick={() => { setInspectorMenuOpen(false); setEditingMemory(selectedMemory); }}><Pencil />Edit memory</button>}
+                      <button onClick={() => { setInspectorMenuOpen(false); void shareMemory(selectedMemory); }}><Share2 />Share</button>
+                      {!requestedProfileId && (!selectedMemory.userId || selectedMemory.userId === user?.id) && <button className="danger" onClick={() => { setInspectorMenuOpen(false); setDeleteOpen(true); }}><Trash2 />Delete memory</button>}
                     </div>}
-                  </div>}
+                  </div>
                   <button onClick={() => { setInspectorMenuOpen(false); setSearchOpen(false); setMemoryPanelOpen(false); }} aria-label="Close inspector"><X /></button>
                 </div>
               </div>
@@ -711,7 +716,7 @@ const MemoryMapHome = () => {
       <nav className="map-bottom-nav" aria-label="Primary navigation">
         <button className="active"><MapIcon /><span>Map</span></button>
         <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-        <button data-tour="friends" onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
+        <button data-tour="friends" onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
         <button data-tour="account" onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
       </nav>
 

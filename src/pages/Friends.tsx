@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Ban, CalendarDays, Check, ContactRound, Heart, Loader2, Map as MapIcon, MapPin, MoreHorizontal, Plus, Search, UserCheck, UserMinus, UserPlus, UserRound, UsersRound, X } from "lucide-react";
+import { ArrowUpDown, Ban, CalendarDays, Check, ContactRound, Heart, Loader2, Map as MapIcon, MapPin, MoreHorizontal, Plus, Search, Share2, UserCheck, UserMinus, UserPlus, UserRound, UsersRound, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useMemories } from "@/hooks/useMemories";
+import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import { supabase } from "@/integrations/supabase/client";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +17,7 @@ import { format } from "date-fns";
 import { useRef } from "react";
 import MiniPlayer from "@/components/MiniPlayer";
 import MemoryPhotoGallery from "@/components/MemoryPhotoGallery";
+import { shareMemory } from "@/lib/shareMemory";
 
 type FriendProfile = { userId: string; username: string; displayName: string | null; avatarUrl: string | null; followedAt?: string; friendshipId?: string };
 type FriendRequest = FriendProfile & { requestId: string };
@@ -51,7 +53,9 @@ const Friends = () => {
   const [friendMemories, setFriendMemories] = useState<Memory[]>([]);
   const [friendMemoriesLoading, setFriendMemoriesLoading] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
+  const [memoryMenuOpen, setMemoryMenuOpen] = useState(false);
   const friendMapRef = useRef<MapRef | null>(null);
+  const friendRequestCount = useFriendRequestCount();
   const mapStyle = useMemo(() => friendMapStyle(import.meta.env.VITE_GEOAPIFY_API_KEY), []);
   const displayName = currentProfile?.display_name || user?.user_metadata?.display_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Your profile";
   const username = currentProfile?.username || user?.user_metadata?.username || user?.email?.split("@")[0] || "";
@@ -124,6 +128,8 @@ const Friends = () => {
     if (loading || selectedFriend || !visibleFriends.length) return;
     setSelectedFriend(visibleFriends[0]);
   }, [loading, selectedFriend, visibleFriends]);
+
+  useEffect(() => { setMemoryMenuOpen(false); }, [selectedMemory]);
 
   useEffect(() => {
     if (!selectedFriend) { setFriendMemories([]); setSelectedMemory(null); return; }
@@ -239,7 +245,7 @@ const Friends = () => {
   return <main className="friends-page">
     <aside className="desktop-map-sidebar desktop-library-sidebar">
       <button type="button" className="desktop-add-memory" onClick={() => setShowAddMemory(true)}><Plus /><span>Add memory</span></button>
-      <nav className="desktop-map-nav"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button className="active"><ContactRound /><span>Friends</span></button><button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button></nav>
+      <nav className="desktop-map-nav"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button className="active"><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button><button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button></nav>
       <div className="desktop-account-wrap"><button className="desktop-account" onClick={() => navigate("/account")}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <span className="account-initials">{displayName.slice(0,2).toUpperCase()}</span>}<span className="account-name"><strong>{displayName}</strong>{username && <small>@{username}</small>}</span></button></div>
     </aside>
 
@@ -273,7 +279,7 @@ const Friends = () => {
           <div className="inspector-scroll-area">
             <div className="desktop-inspector-media">
               <MemoryPhotoGallery memory={selectedMemory} />
-              <div className="desktop-inspector-actions"><span /><button type="button" onClick={() => setSelectedMemory(null)} aria-label="Close memory preview"><X /></button></div>
+              <div className="desktop-inspector-actions" onClick={(event) => event.stopPropagation()}><div className="desktop-inspector-menu-wrap"><button onClick={() => setMemoryMenuOpen((open) => !open)} aria-label="Memory actions"><MoreHorizontal /></button>{memoryMenuOpen && <div className="desktop-inspector-menu"><button onClick={() => { setMemoryMenuOpen(false); void shareMemory(selectedMemory); }}><Share2 />Share</button></div>}</div><button type="button" onClick={() => setSelectedMemory(null)} aria-label="Close memory preview"><X /></button></div>
             </div>
             <div className="memory-story">
               <p className="memory-owner">{selectedFriend.avatarUrl ? <img src={selectedFriend.avatarUrl} alt="" /> : <span style={{ backgroundColor: FRIEND_COLOR }}>{selectedFriend.username.slice(0, 2).toUpperCase()}</span>}<strong>@{selectedFriend.username}</strong></p>
@@ -286,7 +292,7 @@ const Friends = () => {
       </> : <div className="friends-map-status"><UsersRound /><strong>Select a friend</strong><span>Their shared journey will appear here.</span></div>}
     </aside>
 
-    <nav className="library-bottom-nav" aria-label="Primary navigation"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button className="active"><ContactRound /><span>Friends</span></button><button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button></nav>
+    <nav className="library-bottom-nav" aria-label="Primary navigation"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button className="active"><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button><button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button></nav>
 
     <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) { setPeopleQuery(""); setPeople([]); } }}><DialogContent className="friends-add-dialog"><DialogHeader><DialogTitle>Add friend</DialogTitle><DialogDescription>Search by username or name to send a friend request.</DialogDescription></DialogHeader><div className="friends-people-search"><Search /><input autoFocus value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Search by username or name…" /></div><div className="friends-people-results">{peopleLoading ? <Loader2 className="animate-spin" /> : people.map((person) => { const isFriend = friendIds.has(person.userId); const isRequested = outgoingRequestIds.has(person.userId); const isIncoming = incomingRequestIds.has(person.userId); return <div key={person.userId}><span className="friend-search-avatar">{person.avatarUrl ? <img src={person.avatarUrl} alt="" /> : person.username.slice(0,2).toUpperCase()}</span><span><strong>@{person.username}</strong>{person.displayName && <small>{person.displayName}</small>}</span><button disabled={isFriend || isRequested || isIncoming || savingId === person.userId} onClick={() => void addFriend(person)}>{savingId === person.userId ? <Loader2 className="animate-spin" /> : isFriend ? <><UserCheck />Friends</> : isRequested ? <><Check />Requested</> : isIncoming ? <><UserCheck />Respond above</> : <><UserPlus />Request</>}</button></div>; })}</div></DialogContent></Dialog>
 

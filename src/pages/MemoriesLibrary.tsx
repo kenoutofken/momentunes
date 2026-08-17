@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Music2, Pencil, Plus, Search, SlidersHorizontal, Star, Trash2, UserRound, X } from "lucide-react";
+import { CalendarDays, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Music2, Pencil, Plus, Search, Share2, SlidersHorizontal, Star, Trash2, UserRound, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { useMemories } from "@/hooks/useMemories";
@@ -10,11 +10,13 @@ import MiniPlayer from "@/components/MiniPlayer";
 import { useAuth } from "@/contexts/AuthContext";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import Map, { Marker, type MapStyle } from "react-map-gl/maplibre";
 import MemoryDetail from "@/pages/MemoryDetail";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import MemoryPhotoGallery from "@/components/MemoryPhotoGallery";
+import { shareMemory } from "@/lib/shareMemory";
 
 const FAVORITES_KEY = "momentunes:favorite-memories";
 const inspectorMapStyle = (apiKey?: string): MapStyle => ({
@@ -27,6 +29,7 @@ const MemoriesLibrary = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { profile: currentProfile } = useCurrentProfile();
+  const friendRequestCount = useFriendRequestCount();
   const [searchParams] = useSearchParams();
   const { memories, loading, addMemory, updateMemory, deleteMemory } = useMemories();
   const [query, setQuery] = useState("");
@@ -91,7 +94,7 @@ const MemoriesLibrary = () => {
   return <main className={`memories-library ${selectedMemory ? "has-library-inspector" : ""}`}>
     <aside className="desktop-map-sidebar desktop-library-sidebar">
       <button type="button" className="desktop-add-memory" onClick={() => setShowAddMemory(true)}><Plus /><span>Add memory</span></button>
-      <nav className="desktop-map-nav"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button className="active"><Heart /><span>Memories</span></button><button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button><button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button></nav>
+      <nav className="desktop-map-nav"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button className="active"><Heart /><span>Memories</span></button><button onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button><button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button></nav>
       <div className="desktop-account-wrap"><button className="desktop-account" onClick={() => navigate("/account")}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <span className="account-initials">{displayName.slice(0,2).toUpperCase()}</span>}<span className="account-name"><strong>{displayName}</strong>{username && <small>@{username}</small>}</span></button></div>
     </aside>
     <div className="memories-library-shell">
@@ -123,6 +126,7 @@ const MemoriesLibrary = () => {
                 <DropdownMenuTrigger asChild><button type="button" className="memory-row-more" onClick={(event) => event.stopPropagation()} aria-label={`More actions for ${memory.title}`}><MoreHorizontal /></button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="memory-row-actions-menu">
                   <DropdownMenuItem onSelect={() => setEditingMemory(memory)}><Pencil />Edit memory</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void shareMemory(memory)}><Share2 />Share</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="memory-row-delete-action" onSelect={() => { setDeletingMemory(memory); setDeleteOpen(true); }}><Trash2 />Delete memory</DropdownMenuItem>
                 </DropdownMenuContent>
@@ -139,7 +143,7 @@ const MemoriesLibrary = () => {
     <nav className="library-bottom-nav" aria-label="Primary navigation">
       <button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button>
       <button className="active"><Heart /><span>Memories</span></button>
-      <button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
+      <button onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
       <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
     </nav>
 
@@ -159,7 +163,7 @@ const MemoriesLibrary = () => {
         <div className="library-inspector-story">
           <div className="library-inspector-gallery">
             <MemoryPhotoGallery memory={selectedMemory} />
-            <div className="desktop-inspector-actions"><div className="desktop-inspector-menu-wrap"><button onClick={() => setInspectorMenuOpen((open) => !open)} aria-label="Memory actions"><MoreHorizontal /></button>{inspectorMenuOpen && <div className="desktop-inspector-menu"><button onClick={() => { setInspectorMenuOpen(false); setEditingMemory(selectedMemory); }}><Pencil />Edit memory</button><button className="danger" onClick={() => { setInspectorMenuOpen(false); setDeletingMemory(selectedMemory); setDeleteOpen(true); }}><Trash2 />Delete memory</button></div>}</div></div>
+            <div className="desktop-inspector-actions"><div className="desktop-inspector-menu-wrap"><button onClick={() => setInspectorMenuOpen((open) => !open)} aria-label="Memory actions"><MoreHorizontal /></button>{inspectorMenuOpen && <div className="desktop-inspector-menu"><button onClick={() => { setInspectorMenuOpen(false); setEditingMemory(selectedMemory); }}><Pencil />Edit memory</button><button onClick={() => { setInspectorMenuOpen(false); void shareMemory(selectedMemory); }}><Share2 />Share</button><button className="danger" onClick={() => { setInspectorMenuOpen(false); setDeletingMemory(selectedMemory); setDeleteOpen(true); }}><Trash2 />Delete memory</button></div>}</div></div>
           </div>
           <div className="library-inspector-summary"><div className="memory-title-row"><h2>{selectedMemory.title}</h2></div><div className="library-inspector-meta"><p><MapPin />{selectedMemory.locationName || "Somewhere special"}</p><p><CalendarDays />{format(new Date(`${selectedMemory.date}T12:00:00`), "MMMM d, yyyy")}</p></div></div>
           <div className="library-inspector-map">

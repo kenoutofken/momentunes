@@ -8,6 +8,7 @@ import { useMemories } from "@/hooks/useMemories";
 import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/compressImage";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
+import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +20,7 @@ const Profile = () => {
   const { user, signOut, refreshUser } = useAuth();
   const { memories } = useMemories();
   const { profile, setProfile } = useCurrentProfile();
+  const friendRequestCount = useFriendRequestCount();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [displayNameOpen, setDisplayNameOpen] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState("");
@@ -135,7 +137,7 @@ const Profile = () => {
   return <main className="profile-page">
     <aside className="desktop-map-sidebar desktop-library-sidebar desktop-profile-sidebar">
       <button type="button" className="desktop-add-memory" onClick={() => navigate("/?add=true")}><Plus /><span>Add memory</span></button>
-      <nav className="desktop-map-nav"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button><button className="active"><UserRound /><span>Account</span></button></nav>
+      <nav className="desktop-map-nav"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button><button className="active"><UserRound /><span>Account</span></button></nav>
       <div className="desktop-account-wrap">
         <button className="desktop-account" onClick={() => navigate("/account")}>{avatarUrl ? <img src={avatarUrl} alt="" /> : <span className="account-initials">{displayName.slice(0,2).toUpperCase()}</span>}<span className="account-name"><strong>{displayName}</strong>{username && <small>@{username}</small>}</span></button>
       </div>
@@ -190,7 +192,7 @@ const Profile = () => {
     <nav className="library-bottom-nav" aria-label="Primary navigation">
       <button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button>
       <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-      <button onClick={() => navigate("/friends")}><ContactRound /><span>Friends</span></button>
+      <button onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
       <button className="active"><UserRound /><span>Account</span></button>
     </nav>
     <Dialog open={displayNameOpen} onOpenChange={setDisplayNameOpen}><DialogContent className="profile-name-dialog"><DialogHeader><DialogTitle>Change display name</DialogTitle></DialogHeader><Input value={displayNameDraft} onChange={(event) => setDisplayNameDraft(event.target.value)} maxLength={60} placeholder="Your display name" onKeyDown={(event) => { if (event.key === "Enter") saveDisplayName(); }} /><button className="profile-name-save" onClick={saveDisplayName} disabled={savingDisplayName || !displayNameDraft.trim()}>{savingDisplayName ? "Saving…" : "Save name"}</button></DialogContent></Dialog>

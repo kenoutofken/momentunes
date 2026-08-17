@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, { type MapRef, type MapStyle } from "react-map-gl/maplibre";
 import { CalendarDays, ChevronRight, ImagePlus, Loader2, MapPin, Music2, X } from "lucide-react";
 import { toast } from "sonner";
+import { parse as parseExif } from "exifr";
 import LocationSearch, { type LocationResult } from "@/components/LocationSearch";
 import SongSearch from "@/components/SongSearch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -36,6 +37,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
   const dateInputRef = useRef<HTMLInputElement>(null);
   const pickerMapRef = useRef<MapRef | null>(null);
   const requestedDeviceLocationRef = useRef(false);
+  const dateTouchedRef = useRef(false);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [songTitle, setSongTitle] = useState("");
@@ -70,6 +72,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
 
   useEffect(() => {
     if (!open || !editingMemory) return;
+    dateTouchedRef.current = true;
     setTitle(editingMemory.title);
     setDate(editingMemory.date.slice(0, 10));
     setSongTitle(editingMemory.songTitle);
@@ -93,6 +96,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
   const reset = () => {
     setTitle(""); setDate(new Date().toISOString().slice(0, 10)); setLocation(null);
     setSongTitle(""); setArtist(""); setImageFiles([]); setImagePreviews([]); setImageFocusPoints([]); setAdjustingPhoto(null);
+    dateTouchedRef.current = false;
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -159,6 +163,21 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
     }
     if (chosen.length > room) toast.info("You can attach up to 8 photos");
     if (!accepted.length) { if (fileInputRef.current) fileInputRef.current.value = ""; return; }
+    if (!editingMemory && !dateTouchedRef.current && imageFiles.length === 0) {
+      for (const file of accepted) {
+        try {
+          // EXIF is read from the original file — compressImage re-encodes via canvas later, which strips it.
+          const exif = await parseExif(file, ["DateTimeOriginal", "CreateDate"]);
+          const captured: unknown = exif?.DateTimeOriginal ?? exif?.CreateDate;
+          if (captured instanceof Date && !Number.isNaN(captured.getTime())) {
+            dateTouchedRef.current = true;
+            setDate(`${captured.getFullYear()}-${String(captured.getMonth() + 1).padStart(2, "0")}-${String(captured.getDate()).padStart(2, "0")}`);
+            toast.info(`Date set from photo: ${format(captured, "MMMM d, yyyy")}`);
+            break;
+          }
+        } catch { /* No EXIF date on this file (HEIC/PNG/screenshot, or stripped by the OS) — leave the date as-is. */ }
+      }
+    }
     setImageFiles((current) => [...current, ...accepted]);
     setImagePreviews((current) => [...current, ...accepted.map(URL.createObjectURL)]);
     setImageFocusPoints((current) => [...current, ...accepted.map(() => ({ x: 50, y: 50 }))]);
@@ -227,7 +246,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
           className={`quick-picker-field quick-location-picker ${location ? "has-value" : ""}`}
           onClick={startPickingLocation}
         >{locatingDevice || resolvingLocation ? <Loader2 className="animate-spin" /> : <MapPin />}<span>{location?.name || (locatingDevice ? "Getting your current location…" : resolvingLocation ? "Finding this place…" : "Drop a pin on the map")}</span><ChevronRight /></button>
-        <button type="button" className="quick-picker-field quick-date-picker" onClick={openDatePicker}><CalendarDays /><span>{dateLabel}</span><ChevronRight /><input ref={dateInputRef} type="date" value={date} onChange={(event) => setDate(event.target.value)} tabIndex={-1} aria-label="Memory date" /></button>
+        <button type="button" className="quick-picker-field quick-date-picker" onClick={openDatePicker}><CalendarDays /><span>{dateLabel}</span><ChevronRight /><input ref={dateInputRef} type="date" value={date} onChange={(event) => { dateTouchedRef.current = true; setDate(event.target.value); }} tabIndex={-1} aria-label="Memory date" /></button>
         <div className={`quick-photo-field ${imagePreviews.length ? "has-images" : ""}`} role="button" tabIndex={0} onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) fileInputRef.current?.click(); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); fileInputRef.current?.click(); } }}>
           {imagePreviews.length ? <div className="quick-photo-grid">{imagePreviews.map((preview, index) => <div key={preview}><img src={preview} alt={`Selected memory ${index + 1}`} style={{ objectPosition: `${imageFocusPoints[index]?.x ?? 50}% ${imageFocusPoints[index]?.y ?? 50}%` }} /><button type="button" className="quick-remove-photo" aria-label={`Remove photo ${index + 1}`} onClick={() => { setImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index)); setImageFocusPoints((current) => current.filter((_, itemIndex) => itemIndex !== index)); const blobIndex = imagePreviews.slice(0, index + 1).filter((url) => url.startsWith("blob:")).length - 1; if (preview.startsWith("blob:")) setImageFiles((current) => current.filter((_, itemIndex) => itemIndex !== blobIndex)); }}><X /></button><button type="button" className="quick-adjust-photo" onClick={() => setAdjustingPhoto(index)}>Adjust</button></div>)}</div> : <><ImagePlus /><strong>Add photos</strong><small>Choose up to 8 moments from your library</small></>}
           {imagePreviews.length > 0 && imagePreviews.length < 8 && <button type="button" className="quick-add-another-photo" onClick={() => fileInputRef.current?.click()}>Add another photo</button>}
