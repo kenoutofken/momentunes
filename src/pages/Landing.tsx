@@ -13,7 +13,7 @@ const slides = [
   },
   {
     scene: "photo",
-    title: "Keep the feeling close",
+    title: "Keep the feeling\nclose",
     description:
       "Bring together the photo, place, and date that make a memory feel vivid again.",
   },
