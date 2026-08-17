@@ -217,7 +217,7 @@ const Friends = () => {
     <button className="friend-map-button" onClick={(event) => { event.stopPropagation(); navigate(`/?friend=${encodeURIComponent(friend.userId)}&username=${encodeURIComponent(friend.username)}`); }}><MapIcon />View map</button>
     <DropdownMenu>
       <DropdownMenuTrigger asChild><button className="friend-more-button" onClick={(event) => event.stopPropagation()} aria-label={`More actions for @${friend.username}`}><MoreHorizontal /></button></DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="friend-actions-menu">
+      <DropdownMenuContent align="end" className="friend-actions-menu" onClick={(event) => event.stopPropagation()}>
         <DropdownMenuItem onSelect={() => setPendingAction({ friend, type: "remove" })}><UserMinus />Remove friend</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="friend-block-action" onSelect={() => setPendingAction({ friend, type: "block" })}><Ban />Block user</DropdownMenuItem>
