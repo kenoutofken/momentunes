@@ -18,6 +18,7 @@ import { useRef } from "react";
 import MiniPlayer from "@/components/MiniPlayer";
 import MemoryPhotoGallery from "@/components/MemoryPhotoGallery";
 import { shareMemory } from "@/lib/shareMemory";
+import { shortLocation } from "@/lib/formatLocation";
 
 type FriendProfile = { userId: string; username: string; displayName: string | null; avatarUrl: string | null; followedAt?: string; friendshipId?: string };
 type FriendRequest = FriendProfile & { requestId: string };
@@ -283,8 +284,8 @@ const Friends = () => {
             </div>
             <div className="memory-story">
               <p className="memory-owner">{selectedFriend.avatarUrl ? <img src={selectedFriend.avatarUrl} alt="" /> : <span style={{ backgroundColor: FRIEND_COLOR }}>{selectedFriend.username.slice(0, 2).toUpperCase()}</span>}<strong>@{selectedFriend.username}</strong></p>
-              <div className="memory-title-row"><h1>{selectedMemory.title}</h1></div>
-              <div className="desktop-inspector-meta"><p><MapPin />{selectedMemory.locationName || "Shared location"}</p><p><CalendarDays />{format(new Date(`${selectedMemory.date}T12:00:00`), "MMMM d, yyyy")}</p></div>
+              <h1 className="desktop-inspector-title">{selectedMemory.title}</h1>
+              <div className="desktop-inspector-meta"><p><MapPin /><span>{selectedMemory.locationName ? shortLocation(selectedMemory.locationName) : "Shared location"}</span></p><p><CalendarDays /><span>{format(new Date(`${selectedMemory.date}T12:00:00`), "MMMM d, yyyy")}</span></p></div>
               <div className="inspector-player"><MiniPlayer key={`${selectedMemory.id}:${selectedMemory.songTitle}:${selectedMemory.artist}`} songTitle={selectedMemory.songTitle} artist={selectedMemory.artist} variant="map" /></div>
             </div>
           </div>

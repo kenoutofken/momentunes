@@ -10,14 +10,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import MemoryDetail from "@/pages/MemoryDetail";
+import PhotoLightbox from "@/components/PhotoLightbox";
+import { shortLocation } from "@/lib/formatLocation";
 
 const FAVORITES_KEY = "momentunes:favorite-memories";
-const shortLocation = (location: string) => {
-  const parts = location.split(",").map((part) => part.trim()).filter(Boolean);
-  if (parts.length <= 2) return parts.join(", ");
-  const city = parts.length >= 4 ? parts[1] : parts[0];
-  return [city, parts[parts.length - 1]].join(", ");
-};
 
 const MemoriesLibrary = () => {
   const navigate = useNavigate();
@@ -36,6 +32,8 @@ const MemoriesLibrary = () => {
   });
   const [showAddMemory, setShowAddMemory] = useState(false);
   const [detailMemory, setDetailMemory] = useState<Memory | null>(null);
+  const [lightboxMemory, setLightboxMemory] = useState<Memory | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const displayName = currentProfile?.display_name || user?.user_metadata?.display_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Your profile";
   const username = currentProfile?.username || user?.user_metadata?.username || user?.email?.split("@")[0] || "";
   const avatarUrl = currentProfile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
@@ -85,8 +83,10 @@ const MemoriesLibrary = () => {
       <section className="memory-list" aria-live="polite">
         {loading ? <p className="memories-empty">Loading your memories…</p> : filtered.length ? filtered.map((memory) => {
           const isFavorite = favorites.has(memory.id);
-          return <article key={memory.id} className="memory-library-row" onClick={() => setDetailMemory(memory)}>
-            <img src={memory.imageUrl || "/landing/landing_02.png"} alt="" />
+          return <article key={memory.id} className="memory-library-row">
+            <button type="button" className="memory-row-photo" onClick={() => { setLightboxMemory(memory); setLightboxIndex(0); }} aria-label={`View photo for ${memory.title}`}>
+              <img src={memory.imageUrl || "/landing/landing_02.png"} alt="" />
+            </button>
             <div className="memory-row-copy">
               <h2><span className="memory-row-title">{memory.title}</span></h2>
               <div className="memory-row-meta">
@@ -96,8 +96,8 @@ const MemoriesLibrary = () => {
               <p className="memory-row-song"><Music2 /> <span>{memory.songTitle} — {memory.artist}</span></p>
             </div>
             <div className="memory-row-actions">
-              <button type="button" className="memory-row-more" onClick={(event) => { event.stopPropagation(); setDetailMemory(memory); }}>See more</button>
-              <button type="button" className={`memory-row-favorite ${isFavorite ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); toggleFavorite(memory.id); }} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}><Star fill={isFavorite ? "currentColor" : "none"} /></button>
+              <button type="button" className="memory-row-more" onClick={() => setDetailMemory(memory)}>View memory</button>
+              <button type="button" className={`memory-row-favorite ${isFavorite ? "active" : ""}`} onClick={() => toggleFavorite(memory.id)} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}><Star fill={isFavorite ? "currentColor" : "none"} /></button>
             </div>
           </article>;
         }) : <div className="memories-empty">{memories.length ? <Search /> : <Heart />}<strong>{memories.length ? "No memories found" : "No memories yet"}</strong><span>{memories.length ? "Try changing your search or filters." : "Add your first memory to start mapping your story."}</span>{!memories.length && <button type="button" onClick={() => setShowAddMemory(true)}><Plus />Add your first memory</button>}</div>}
@@ -123,6 +123,14 @@ const MemoriesLibrary = () => {
     </Sheet>
     <QuickAddMemorySheet open={showAddMemory} onOpenChange={setShowAddMemory} onAdd={async (data) => Boolean(await addMemory({ ...data, tags: data.tags ?? [] }))} />
     {detailMemory && <MemoryDetail overlay memoryOverride={detailMemory} onClose={() => setDetailMemory(null)} />}
+    {lightboxMemory && <PhotoLightbox
+      images={lightboxMemory.imageUrls?.length ? lightboxMemory.imageUrls : [lightboxMemory.imageUrl || "/landing/landing_02.png"]}
+      index={lightboxIndex}
+      title={lightboxMemory.title}
+      open={Boolean(lightboxMemory)}
+      onOpenChange={(open) => { if (!open) setLightboxMemory(null); }}
+      onIndexChange={setLightboxIndex}
+    />}
   </main>;
 };
 

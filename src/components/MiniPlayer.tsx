@@ -187,7 +187,6 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
         <div className="track-row map-track-loading" aria-live="polite">
           <div className="track-art track-art-placeholder"><Loader2 className="animate-spin" /></div>
           <div className="track-copy"><strong>{songTitle}</strong><span>Finding preview…</span></div>
-          <div className="track-progress"><span style={{ width: 0 }} /></div>
           <button type="button" disabled aria-label="Finding preview"><Loader2 className="animate-spin" /></button>
         </div>
       );
@@ -219,7 +218,6 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
         <div className="track-row map-track-unavailable">
           <div className="track-art track-art-placeholder"><Music2 /></div>
           <div className="track-copy"><strong>{songTitle}</strong><span>{artist} · Preview unavailable</span></div>
-          <div className="track-progress"><span style={{ width: 0 }} /></div>
           <button type="button" disabled aria-label="No preview available"><Play /></button>
         </div>
       );
@@ -275,7 +273,6 @@ const MiniPlayer = ({ songTitle, artist, autoPlay = false, variant = "default" }
           <div className="track-art track-art-placeholder" aria-label="Album artwork unavailable"><Music2 /></div>
         )}
         <div className="track-copy"><strong>{track.title || songTitle}</strong><span>{track.artist || artist}</span></div>
-        <div className="track-progress" onClick={handleProgressClick}><span style={{ width: `${progress}%` }} /></div>
         <button type="button" onClick={handleTogglePlay} aria-label={playing ? "Pause preview" : "Play preview"}>{playing ? <Pause size={22} fill="currentColor" /> : <Play size={23} fill="currentColor" />}</button>
         <audio ref={audioRef} src={track.preview} muted={siteMuted || muted || siteVolume === 0} onEnded={handleEnded} preload="none" />
       </div>

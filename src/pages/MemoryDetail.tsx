@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Clock, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserPlus, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserPlus, UserRound } from "lucide-react";
 import { format } from "date-fns";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import MiniPlayer from "@/components/MiniPlayer";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
+import PhotoLightbox from "@/components/PhotoLightbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMemories } from "@/hooks/useMemories";
 import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import type { Memory } from "@/types/memory";
 import { supabase } from "@/integrations/supabase/client";
 import { shareMemory } from "@/lib/shareMemory";
+import { shortLocation } from "@/lib/formatLocation";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 type MemoryAccessInfo = {
   ownerId: string;
@@ -50,7 +51,6 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
   const [editing, setEditing] = useState<Memory | null>(null);
   const [imageOpen, setImageOpen] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [remoteMemory, setRemoteMemory] = useState<Memory | null>(null);
   const [accessInfo, setAccessInfo] = useState<MemoryAccessInfo | null>(null);
   const [resolvingAccess, setResolvingAccess] = useState(false);
@@ -67,10 +67,6 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
     setImageOpen(true);
   };
 
-  const moveImage = (direction: -1 | 1) => {
-    setActiveImageIndex((current) => (current + direction + memoryImages.length) % memoryImages.length);
-  };
-
   useEffect(() => { if (!overlay) window.scrollTo(0, 0); }, [overlay]);
 
   useEffect(() => {
@@ -81,16 +77,6 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
     window.addEventListener("keydown", handleKeyDown);
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", handleKeyDown); };
   }, [onClose, overlay]);
-
-  useEffect(() => {
-    if (!imageOpen || memoryImages.length < 2) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") setActiveImageIndex((current) => (current - 1 + memoryImages.length) % memoryImages.length);
-      if (event.key === "ArrowRight") setActiveImageIndex((current) => (current + 1) % memoryImages.length);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [imageOpen, memoryImages.length]);
 
   // A shared link can point at a memory the viewer doesn't own. Once their own
   // memories have finished loading and it's not among them, fall back to a
@@ -194,24 +180,26 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
         </div>
       </header>
 
-      <section className="detail-header">
-        <h1>{memory.title}</h1>
-        <div className="detail-subheader">
-          <p><MapPin /><span>{memory.locationName || "No location saved"}</span></p>
-          <p><CalendarDays /><span>{format(new Date(`${memory.date}T12:00:00`), "MMMM d, yyyy")}</span></p>
-        </div>
-      </section>
-
-      <button className="detail-location-section" onClick={() => (overlay && location.pathname === "/") ? onClose?.() : navigate(`/?memory=${memory.id}`)} disabled={!hasLocation} aria-label={hasLocation ? "View this memory on the map" : "No location saved"}>
-        {mapPreviewUrl ? <img src={mapPreviewUrl} alt="" /> : <div className="detail-map-empty"><MapPin /><span>No location saved</span></div>}
-      </button>
-
-      <div className="detail-sections-grid">
-        <section className="detail-music-card"><MiniPlayer songTitle={memory.songTitle} artist={memory.artist} variant="map" /></section>
-
+      <div className="detail-layout">
         <section className={`detail-media-grid detail-media-grid-${Math.min(memoryImages.length, 4)}`} aria-label={`${memoryImages.length} memory ${memoryImages.length === 1 ? "photo" : "photos"}`}>
           {memoryImages.slice(0, 4).map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => showImage(index)} aria-label={`View photo ${index + 1} of ${memoryImages.length} full size`}><img src={image} alt="" style={{ objectPosition: `${memory.imageFocusPoints?.[index]?.x ?? 50}% ${memory.imageFocusPoints?.[index]?.y ?? 50}%` }} />{index === 3 && memoryImages.length > 4 && <span className="detail-more-photos">+{memoryImages.length - 4}<small>more</small></span>}</button>)}
         </section>
+
+        <div className="detail-info-panel">
+          <section className="detail-header">
+            <h1>{memory.title}</h1>
+            <div className="detail-subheader">
+              <p><MapPin /><span>{memory.locationName ? shortLocation(memory.locationName) : "No location saved"}</span></p>
+              <p><CalendarDays /><span>{format(new Date(`${memory.date}T12:00:00`), "MMMM d, yyyy")}</span></p>
+            </div>
+          </section>
+
+          <button className="detail-location-section" onClick={() => (overlay && location.pathname === "/") ? onClose?.() : navigate(`/?memory=${memory.id}`)} disabled={!hasLocation} aria-label={hasLocation ? "View this memory on the map" : "No location saved"}>
+            {mapPreviewUrl ? <img src={mapPreviewUrl} alt="" /> : <div className="detail-map-empty"><MapPin /><span>No location saved</span></div>}
+          </button>
+
+          <section className="detail-music-card"><MiniPlayer songTitle={memory.songTitle} artist={memory.artist} variant="map" /></section>
+        </div>
       </div>
     </div>
 
@@ -224,7 +212,7 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
 
     <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{memory.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { await deleteMemory(memory.id); if (onClose) onClose(); else navigate("/journal", { replace: true }); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
-    <Dialog open={imageOpen} onOpenChange={setImageOpen}><DialogContent className="detail-image-lightbox"><DialogTitle className="sr-only">{memory.title} photo {activeImageIndex + 1} of {memoryImages.length}</DialogTitle><div className="detail-lightbox-stage" onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={(event) => { if (touchStartX === null) return; const distance = event.changedTouches[0].clientX - touchStartX; if (Math.abs(distance) > 45 && memoryImages.length > 1) moveImage(distance > 0 ? -1 : 1); setTouchStartX(null); }}><img src={memoryImages[activeImageIndex] || memoryImages[0]} alt={`${memory.title}, photo ${activeImageIndex + 1}`} />{memoryImages.length > 1 && <><button className="detail-lightbox-arrow previous" onClick={() => moveImage(-1)} aria-label="Previous photo"><ChevronLeft /></button><button className="detail-lightbox-arrow next" onClick={() => moveImage(1)} aria-label="Next photo"><ChevronRight /></button><span className="detail-lightbox-count" aria-live="polite">{activeImageIndex + 1} of {memoryImages.length}</span></>}</div></DialogContent></Dialog>
+    <PhotoLightbox images={memoryImages} index={activeImageIndex} title={memory.title} open={imageOpen} onOpenChange={setImageOpen} onIndexChange={setActiveImageIndex} />
 
     <QuickAddMemorySheet open={Boolean(editing)} editingMemory={editing} onOpenChange={(open) => { if (!open) setEditing(null); }} onAdd={async (data) => { if (!editing) return false; const saved = await updateMemory(editing.id, { ...data, tags: data.tags ?? [] }); if (saved) setEditing(null); return saved; }} />
   </main>;

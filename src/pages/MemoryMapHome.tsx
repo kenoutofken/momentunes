@@ -24,6 +24,7 @@ import MemoryDetail from "@/pages/MemoryDetail";
 import OnboardingTour, { type TourStep } from "@/components/OnboardingTour";
 import MarqueeTitle from "@/components/MarqueeTitle";
 import { shareMemory } from "@/lib/shareMemory";
+import { shortLocation } from "@/lib/formatLocation";
 
 const DEFAULT_CENTER = { longitude: -73.92, latitude: 40.7, zoom: 9.25 };
 type MemoryClusterProperties = { memoryId?: string };
@@ -100,6 +101,7 @@ const MemoryMapHome = () => {
   const { profile: currentProfile } = useCurrentProfile();
   const friendRequestCount = useFriendRequestCount();
   const mapRef = useRef<MapRef | null>(null);
+  const nowPlayingCardRef = useRef<HTMLElement | null>(null);
   const cardTouchStartX = useRef<number | null>(null);
   const mapLongPressTimerRef = useRef<number | null>(null);
   const suppressMapClickRef = useRef(false);
@@ -289,6 +291,22 @@ const MemoryMapHome = () => {
   const selectedMemory = displayMemories.find((memory) => memory.id === selectedId);
   const sharedLocationMemories = useMemo(() => activeCollectionIds.map((id) => displayMemories.find((memory) => memory.id === id)).filter((memory): memory is Memory => Boolean(memory)), [activeCollectionIds, displayMemories]);
   const sharedLocationIndex = selectedMemory ? sharedLocationMemories.findIndex((memory) => memory.id === selectedMemory.id) : -1;
+
+  // The adjacent-memory peek cards are absolutely positioned siblings of this card and can't
+  // rely on top/bottom:0 to match its height, since the card's own height is content-driven
+  // (title length, whether a marquee is active, etc.), not a fixed value. Measure it directly
+  // and expose it as a custom property the peek cards can size against.
+  useEffect(() => {
+    const card = nowPlayingCardRef.current;
+    if (!card) return;
+    const observer = new ResizeObserver(() => {
+      // getBoundingClientRect (not entry.contentRect, which excludes padding/border) so this
+      // matches the full box height the peek cards need to size themselves to.
+      card.style.setProperty("--memory-panel-height", `${card.getBoundingClientRect().height}px`);
+    });
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [selectedMemory, memoryPanelOpen]);
 
   useEffect(() => {
     const memoryId = searchParams.get("memory");
@@ -631,6 +649,7 @@ const MemoryMapHome = () => {
       <AnimatePresence mode="sync" custom={{ direction: cardDirection, isCollection: sharedLocationMemories.length > 1 }}>
       {!mapLoading && selectedMemory && memoryPanelOpen && (
         <motion.article
+          ref={nowPlayingCardRef}
           key={`${isMobile ? "mobile" : "desktop"}-${selectedMemory.id}`}
           className={`now-playing-memory ${isMobile && sharedLocationMemories.length > 1 ? `has-location-collection ${sharedLocationIndex === 0 ? "collection-first" : sharedLocationIndex === sharedLocationMemories.length - 1 ? "collection-last" : "collection-middle"}` : ""}`}
           custom={{ direction: cardDirection, isCollection: sharedLocationMemories.length > 1 }}
@@ -661,23 +680,23 @@ const MemoryMapHome = () => {
               {selectedMemory.userId && selectedMemory.userId !== user?.id && <p className="memory-owner">{selectedMemory.avatarUrl ? <img src={selectedMemory.avatarUrl} alt="" /> : <span style={{ backgroundColor: FRIEND_COLOR }}>{(selectedMemory.displayName || selectedMemory.username || "Friend").slice(0,2).toUpperCase()}</span>}<strong>{selectedMemory.displayName || `@${selectedMemory.username || "friend"}`}</strong></p>}
               <MarqueeTitle key={selectedMemory.id} text={selectedMemory.title} className="memory-title-marquee" />
               <div className="memory-meta-card">
-                <p className="memory-location" title={selectedMemory.locationName || "Somewhere special"}><MapPin /><span>{selectedMemory.locationName || "Somewhere special"}</span></p>
+                <p className="memory-location" title={selectedMemory.locationName || "Somewhere special"}><MapPin /><span>{selectedMemory.locationName ? shortLocation(selectedMemory.locationName) : "Somewhere special"}</span></p>
                 <p className="memory-date"><CalendarDays /><time dateTime={selectedMemory.date}>{format(new Date(`${selectedMemory.date}T12:00:00`), "MMM d, yyyy")}</time></p>
               </div>
-              <div onClick={(event) => event.stopPropagation()}><MiniPlayer key={`${selectedMemory.id}:${selectedMemory.songTitle}:${selectedMemory.artist}`} songTitle={selectedMemory.songTitle} artist={selectedMemory.artist} variant="map" /></div>
+              <div className="mobile-inspector-player" onClick={(event) => event.stopPropagation()}><MiniPlayer key={`${selectedMemory.id}:${selectedMemory.songTitle}:${selectedMemory.artist}`} songTitle={selectedMemory.songTitle} artist={selectedMemory.artist} variant="map" /></div>
             </div>
             {sharedLocationMemories.length > 1 && sharedLocationIndex > 0 && (() => {
               const previousMemory = sharedLocationMemories[sharedLocationIndex - 1];
               return <button type="button" className="previous-memory-card-peek" onClick={(event) => { event.stopPropagation(); selectAdjacentLocationMemory(-1); }} aria-label={`Show previous memory: ${previousMemory.title}`}>
                 <img src={previousMemory.imageUrl || "/landing/landing_02.png"} alt="" />
-                <span><strong>{previousMemory.title}</strong><small>{previousMemory.locationName || "Somewhere special"}</small></span>
+                <span><strong>{previousMemory.title}</strong><small>{previousMemory.locationName ? shortLocation(previousMemory.locationName) : "Somewhere special"}</small></span>
               </button>;
             })()}
             {sharedLocationMemories.length > 1 && sharedLocationIndex < sharedLocationMemories.length - 1 && (() => {
               const nextMemory = sharedLocationMemories[sharedLocationIndex + 1];
               return <button type="button" className="next-memory-card-peek" onClick={(event) => { event.stopPropagation(); selectAdjacentLocationMemory(1); }} aria-label={`Show next memory: ${nextMemory.title}`}>
                 <img src={nextMemory.imageUrl || "/landing/landing_02.png"} alt="" />
-                <span><strong>{nextMemory.title}</strong><small>{nextMemory.locationName || "Somewhere special"}</small></span>
+                <span><strong>{nextMemory.title}</strong><small>{nextMemory.locationName ? shortLocation(nextMemory.locationName) : "Somewhere special"}</small></span>
               </button>;
             })()}
           </> : <>
@@ -698,8 +717,8 @@ const MemoryMapHome = () => {
               </div>
               <div className="memory-story">
                 {selectedMemory.userId && selectedMemory.userId !== user?.id && <p className="memory-owner">{selectedMemory.avatarUrl ? <img src={selectedMemory.avatarUrl} alt="" /> : <span style={{ backgroundColor: FRIEND_COLOR }}>{(selectedMemory.displayName || selectedMemory.username || "Friend").slice(0,2).toUpperCase()}</span>}<strong>{selectedMemory.displayName || `@${selectedMemory.username || "friend"}`}</strong></p>}
-                <div className="memory-title-row"><h1>{selectedMemory.title}</h1></div>
-                <div className="desktop-inspector-meta"><p><MapPin />{selectedMemory.locationName || "Somewhere special"}</p><p><CalendarDays />{format(new Date(`${selectedMemory.date}T12:00:00`), "MMMM d, yyyy")}</p></div>
+                <h1 className="desktop-inspector-title">{selectedMemory.title}</h1>
+                <div className="desktop-inspector-meta"><p><MapPin /><span>{selectedMemory.locationName ? shortLocation(selectedMemory.locationName) : "Somewhere special"}</span></p><p><CalendarDays /><span>{format(new Date(`${selectedMemory.date}T12:00:00`), "MMMM d, yyyy")}</span></p></div>
                 <div className="inspector-player" onClick={(event) => event.stopPropagation()}><MiniPlayer key={`${selectedMemory.id}:${selectedMemory.songTitle}:${selectedMemory.artist}`} songTitle={selectedMemory.songTitle} artist={selectedMemory.artist} variant="map" /></div>
               </div>
             </div>
