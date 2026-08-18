@@ -234,7 +234,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
   };
 
   return <Sheet open={open} onOpenChange={(next) => { if (!saving) onOpenChange(next); }}>
-    <SheetContent side={isMobile ? "bottom" : "right"} insetForHandle={false} className={`quick-memory-sheet ${pickingLocation ? "is-picking-location" : ""}`}>
+    <SheetContent side={isMobile ? "bottom" : "right"} insetForHandle={false} className={`quick-memory-sheet ${pickingLocation ? "is-picking-location" : ""}`} onOpenAutoFocus={(event) => event.preventDefault()}>
       <SheetHeader className={isMobile || pickingLocation ? "sr-only" : "quick-memory-heading"}><SheetTitle>{editingMemory ? "Edit memory" : "Add memory"}</SheetTitle></SheetHeader>
       {pickingLocation ? <div className="embedded-location-picker">
         <Map ref={pickerMapRef} initialViewState={{ longitude: pickerCenter.lng, latitude: pickerCenter.lat, zoom: 11 }} mapStyle={mapStyle} dragRotate={false} touchPitch={false} attributionControl={false} onMove={() => setResolvingLocation(true)} onMoveEnd={() => { const center = pickerMapRef.current?.getCenter(); if (!center) return; setPickerCenter({ lat: center.lat, lng: center.lng }); resolveLocation(center.lat, center.lng); }} style={{ position: "absolute", inset: 0 }} />
@@ -256,7 +256,7 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
         <div className="embedded-picker-pin memory-pin is-selected" aria-hidden="true"><span className="pin-brand-quote">“</span></div>
         <div className="embedded-picker-card"><div><MapPin /><span>{resolvingLocation ? "Finding this place…" : location?.name || "Move the map to choose a place"}</span></div><div><button onClick={() => { setLocation(locationBeforePicking); setPickingLocation(false); }}>Cancel</button><button className="confirm" disabled={!location || resolvingLocation} onClick={() => setPickingLocation(false)}>Confirm location</button></div></div>
       </div> : <div className="quick-memory-fields">
-        <input className="quick-primary-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Memory title" maxLength={80} autoFocus />
+        <input className="quick-primary-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Memory title" maxLength={80} />
         <button
           type="button"
           className={`quick-picker-field quick-location-picker ${location ? "has-value" : ""}`}

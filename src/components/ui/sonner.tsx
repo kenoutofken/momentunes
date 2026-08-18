@@ -13,7 +13,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
+            // pointer-events-none stops touch taps from registering as a hover, which on touch
+            // devices sets sonner's "expanded" state permanently (there's no mouseleave to clear
+            // it) and blocks the auto-dismiss timer from ever starting — the toast then never goes away.
+            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg pointer-events-none",
           error:
             "group-[.toaster]:border-[var(--danger-border)] group-[.toaster]:bg-[var(--danger-surface)] group-[.toaster]:text-[var(--danger)]",
           description: "group-[.toast]:text-muted-foreground",
