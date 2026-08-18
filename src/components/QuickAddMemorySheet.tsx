@@ -180,7 +180,8 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
         const toastId = toast.loading(`Converting “${file.name}”…`);
         try {
           accepted.push(await convertDngToJpeg(file));
-        } catch {
+        } catch (error) {
+          console.error(error);
           toast.error(`Couldn't convert “${file.name}”. Try exporting it as JPEG.`);
         } finally {
           toast.dismiss(toastId);

@@ -261,7 +261,8 @@ const AddMemoryForm = ({ onAdd, onClose, editingMemory }: AddMemoryFormProps) =>
         const converted = await convertDngToJpeg(file);
         setImageFile(converted);
         setImagePreview(URL.createObjectURL(converted));
-      } catch {
+      } catch (error) {
+        console.error(error);
         toast.error(`Couldn't convert “${file.name}”. Try exporting it as JPEG.`);
       } finally {
         toast.dismiss(toastId);
