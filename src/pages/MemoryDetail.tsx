@@ -37,15 +37,26 @@ const staticMapPreviewUrl = (lng: number, lat: number, apiKey?: string) => {
   return `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=${width}&height=${height}&center=lonlat:${lng},${lat}&zoom=13&marker=lonlat:${lng},${lat};color:%23f31e78;size:medium&apiKey=${apiKey}`;
 };
 
-type MemoryDetailProps = { overlay?: boolean; memoryOverride?: Memory | null; onClose?: () => void };
+type MemoryDetailProps = {
+  overlay?: boolean;
+  memoryOverride?: Memory | null;
+  onClose?: () => void;
+  // When hosted as an overlay (e.g. on the map), edits/deletes must go through the host's own
+  // useMemories() instance so its already-rendered list stays in sync — this component's own
+  // hook instance has separate state that the host never sees.
+  onDelete?: (id: string) => Promise<boolean>;
+  onUpdate?: (id: string, data: Omit<Memory, "id" | "createdAt">) => Promise<boolean>;
+};
 
-const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: MemoryDetailProps) => {
+const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose, onDelete, onUpdate }: MemoryDetailProps) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
   const friendRequestCount = useFriendRequestCount();
-  const { memories, loading, updateMemory, deleteMemory } = useMemories();
+  const { memories, loading, updateMemory: updateMemoryLocal, deleteMemory: deleteMemoryLocal } = useMemories();
+  const updateMemory = onUpdate ?? updateMemoryLocal;
+  const deleteMemory = onDelete ?? deleteMemoryLocal;
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editing, setEditing] = useState<Memory | null>(null);

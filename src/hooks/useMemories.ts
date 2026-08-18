@@ -179,9 +179,10 @@ export function useMemories() {
     const { error } = await supabase.from("memories").delete().eq("id", id);
     if (error) {
       toast.error("Failed to delete memory");
-    } else {
-      setMemories((prev) => prev.filter((m) => m.id !== id));
+      return false;
     }
+    setMemories((prev) => prev.filter((m) => m.id !== id));
+    return true;
   };
 
   return { memories, loading, addMemory, updateMemory, deleteMemory };

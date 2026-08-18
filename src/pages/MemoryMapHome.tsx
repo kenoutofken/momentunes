@@ -740,7 +740,13 @@ const MemoryMapHome = () => {
       </nav>
 
       <QuickAddMemorySheet open={showForm} initialLocation={formInitialLocation} onOpenChange={(open) => { setShowForm(open); if (!open) setFormInitialLocation(null); }} onAdd={async (data) => { const saved = Boolean(await addMemory({ ...data, tags: data.tags ?? [] })); if (saved && formInitialLocation) completeMapAddHint(); return saved; }} />
-      {detailMemory && <MemoryDetail overlay memoryOverride={detailMemory} onClose={() => setDetailMemory(null)} />}
+      {detailMemory && <MemoryDetail
+        overlay
+        memoryOverride={detailMemory}
+        onClose={() => setDetailMemory(null)}
+        onDelete={async (memoryId) => { const ok = Boolean(await deleteMemory(memoryId)); if (ok) setDetailMemory(null); return ok; }}
+        onUpdate={async (memoryId, data) => { const saved = Boolean(await updateMemory(memoryId, data)); if (saved) setDetailMemory((current) => current && current.id === memoryId ? { ...current, ...data } : current); return saved; }}
+      />}
       {tourOpen && <OnboardingTour steps={TOUR_STEPS} onFinish={finishTour} />}
       <QuickAddMemorySheet open={Boolean(editingMemory)} editingMemory={editingMemory} onOpenChange={(next) => { if (!next) setEditingMemory(null); }} onAdd={async (data) => { if (!editingMemory) return false; const saved = await updateMemory(editingMemory.id, { ...data, tags: data.tags ?? [] }); if (saved) setEditingMemory(null); return saved; }} />
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{selectedMemory?.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { if (!selectedMemory) return; await deleteMemory(selectedMemory.id); setMemoryPanelOpen(false); setSelectedId(null); setActiveCollectionIds([]); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
