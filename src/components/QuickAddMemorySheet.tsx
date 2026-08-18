@@ -8,6 +8,7 @@ import SongSearch from "@/components/SongSearch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { compressImage } from "@/lib/compressImage";
 import { canDecodeImage, imageFileError, SUPPORTED_IMAGE_ACCEPT } from "@/lib/imageFileValidation";
+import { convertDngToJpeg, isDngFile } from "@/lib/convertRawImage";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -155,29 +156,43 @@ const QuickAddMemorySheet = ({ open, onOpenChange, onAdd, editingMemory, initial
     if (!chosen.length) return;
     const room = Math.max(0, 8 - imagePreviews.length);
     const accepted: File[] = [];
+    const shouldSuggestDate = !editingMemory && !dateTouchedRef.current && imageFiles.length === 0;
+    let dateSuggested = false;
     for (const file of chosen.slice(0, room)) {
       const formatError = imageFileError(file);
       if (formatError) { toast.error(formatError); continue; }
+
+      if (shouldSuggestDate && !dateSuggested) {
+        try {
+          // EXIF is read from the original file — compressImage/RAW conversion re-encode via canvas, which strips it.
+          const exif = await parseExif(file, ["DateTimeOriginal", "CreateDate"]);
+          const captured: unknown = exif?.DateTimeOriginal ?? exif?.CreateDate;
+          if (captured instanceof Date && !Number.isNaN(captured.getTime())) {
+            dateTouchedRef.current = true;
+            dateSuggested = true;
+            setDate(`${captured.getFullYear()}-${String(captured.getMonth() + 1).padStart(2, "0")}-${String(captured.getDate()).padStart(2, "0")}`);
+            toast.info(`Date set from photo: ${format(captured, "MMMM d, yyyy")}`);
+          }
+        } catch { /* No EXIF date on this file (HEIC/PNG/screenshot, or stripped by the OS) — leave the date as-is. */ }
+      }
+
+      if (isDngFile(file)) {
+        const toastId = toast.loading(`Converting “${file.name}”…`);
+        try {
+          accepted.push(await convertDngToJpeg(file));
+        } catch {
+          toast.error(`Couldn't convert “${file.name}”. Try exporting it as JPEG.`);
+        } finally {
+          toast.dismiss(toastId);
+        }
+        continue;
+      }
+
       if (!(await canDecodeImage(file))) { toast.error(`“${file.name}” could not be read. Try exporting it as JPEG.`); continue; }
       accepted.push(file);
     }
     if (chosen.length > room) toast.info("You can attach up to 8 photos");
     if (!accepted.length) { if (fileInputRef.current) fileInputRef.current.value = ""; return; }
-    if (!editingMemory && !dateTouchedRef.current && imageFiles.length === 0) {
-      for (const file of accepted) {
-        try {
-          // EXIF is read from the original file — compressImage re-encodes via canvas later, which strips it.
-          const exif = await parseExif(file, ["DateTimeOriginal", "CreateDate"]);
-          const captured: unknown = exif?.DateTimeOriginal ?? exif?.CreateDate;
-          if (captured instanceof Date && !Number.isNaN(captured.getTime())) {
-            dateTouchedRef.current = true;
-            setDate(`${captured.getFullYear()}-${String(captured.getMonth() + 1).padStart(2, "0")}-${String(captured.getDate()).padStart(2, "0")}`);
-            toast.info(`Date set from photo: ${format(captured, "MMMM d, yyyy")}`);
-            break;
-          }
-        } catch { /* No EXIF date on this file (HEIC/PNG/screenshot, or stripped by the OS) — leave the date as-is. */ }
-      }
-    }
     setImageFiles((current) => [...current, ...accepted]);
     setImagePreviews((current) => [...current, ...accepted.map(URL.createObjectURL)]);
     setImageFocusPoints((current) => [...current, ...accepted.map(() => ({ x: 50, y: 50 }))]);

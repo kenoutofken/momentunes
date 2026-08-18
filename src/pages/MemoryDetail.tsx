@@ -26,9 +26,15 @@ type MemoryAccessInfo = {
 // Static (non-WebGL) preview image, since this thumbnail is never interactive.
 // A real MapLibre map here would open a second concurrent WebGL context on
 // top of the map page underneath, which crashes on mobile GPUs.
-const staticMapPreviewUrl = (lng: number, lat: number, apiKey?: string) => apiKey
-  ? `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=290&height=252&center=lonlat:${lng},${lat}&zoom=13&marker=lonlat:${lng},${lat};color:%23f31e78;size:medium&apiKey=${apiKey}`
-  : null;
+// The section renders full-bleed, so request the image at its actual on-screen
+// pixel size (capped) instead of a fixed thumbnail resolution, or it upscales and blurs.
+const staticMapPreviewUrl = (lng: number, lat: number, apiKey?: string) => {
+  if (!apiKey) return null;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.min(Math.round(window.innerWidth * dpr), 1600);
+  const height = Math.min(Math.round(420 * dpr), 900);
+  return `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=${width}&height=${height}&center=lonlat:${lng},${lat}&zoom=13&marker=lonlat:${lng},${lat};color:%23f31e78;size:medium&apiKey=${apiKey}`;
+};
 
 type MemoryDetailProps = { overlay?: boolean; memoryOverride?: Memory | null; onClose?: () => void };
 
@@ -188,20 +194,25 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose }: Memor
         </div>
       </header>
 
-      <section className={`detail-media-grid detail-media-grid-${Math.min(memoryImages.length, 4)}`} aria-label={`${memoryImages.length} memory ${memoryImages.length === 1 ? "photo" : "photos"}`}>
-        {memoryImages.slice(0, 4).map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => showImage(index)} aria-label={`View photo ${index + 1} of ${memoryImages.length} full size`}><img src={image} alt="" style={{ objectPosition: `${memory.imageFocusPoints?.[index]?.x ?? 50}% ${memory.imageFocusPoints?.[index]?.y ?? 50}%` }} />{index === 3 && memoryImages.length > 4 && <span className="detail-more-photos">+{memoryImages.length - 4}<small>more</small></span>}</button>)}
+      <section className="detail-header">
+        <h1>{memory.title}</h1>
+        <div className="detail-subheader">
+          <p><MapPin /><span>{memory.locationName || "No location saved"}</span></p>
+          <p><CalendarDays /><span>{format(new Date(`${memory.date}T12:00:00`), "MMMM d, yyyy")}</span></p>
+        </div>
       </section>
 
-      <section className="detail-title"><span className="detail-title-quote" aria-hidden="true">“</span><h1>{memory.title}</h1></section>
-
-      <button className="detail-location-card" onClick={() => (overlay && location.pathname === "/") ? onClose?.() : navigate(`/?memory=${memory.id}`)} disabled={!hasLocation}>
-        <div className="detail-map-preview">
-          {mapPreviewUrl ? <img src={mapPreviewUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <MapPin />}
-        </div>
-        <div className="detail-place-copy"><p><MapPin /><span>{memory.locationName || "No location saved"}</span></p><p><CalendarDays /><span>{format(new Date(`${memory.date}T12:00:00`), "MMMM d, yyyy")}</span></p></div>
+      <button className="detail-location-section" onClick={() => (overlay && location.pathname === "/") ? onClose?.() : navigate(`/?memory=${memory.id}`)} disabled={!hasLocation} aria-label={hasLocation ? "View this memory on the map" : "No location saved"}>
+        {mapPreviewUrl ? <img src={mapPreviewUrl} alt="" /> : <div className="detail-map-empty"><MapPin /><span>No location saved</span></div>}
       </button>
 
-      <section className="detail-music-card"><MiniPlayer songTitle={memory.songTitle} artist={memory.artist} variant="map" /></section>
+      <div className="detail-sections-grid">
+        <section className="detail-music-card"><MiniPlayer songTitle={memory.songTitle} artist={memory.artist} variant="map" /></section>
+
+        <section className={`detail-media-grid detail-media-grid-${Math.min(memoryImages.length, 4)}`} aria-label={`${memoryImages.length} memory ${memoryImages.length === 1 ? "photo" : "photos"}`}>
+          {memoryImages.slice(0, 4).map((image, index) => <button key={`${image}-${index}`} className="detail-hero" onClick={() => showImage(index)} aria-label={`View photo ${index + 1} of ${memoryImages.length} full size`}><img src={image} alt="" style={{ objectPosition: `${memory.imageFocusPoints?.[index]?.x ?? 50}% ${memory.imageFocusPoints?.[index]?.y ?? 50}%` }} />{index === 3 && memoryImages.length > 4 && <span className="detail-more-photos">+{memoryImages.length - 4}<small>more</small></span>}</button>)}
+        </section>
+      </div>
     </div>
 
     <nav className="library-bottom-nav" aria-label="Primary navigation">

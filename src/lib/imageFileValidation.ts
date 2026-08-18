@@ -1,20 +1,20 @@
-export const SUPPORTED_IMAGE_ACCEPT = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
+export const SUPPORTED_IMAGE_ACCEPT = ".jpg,.jpeg,.png,.webp,.dng,image/jpeg,image/png,image/webp";
 
 const supportedMimeTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const supportedExtensions = new Set(["jpg", "jpeg", "png", "webp"]);
-const rawExtensions = new Set(["dng", "raw", "arw", "cr2", "cr3", "nef", "orf", "raf", "rw2"]);
+const rawExtensions = new Set(["raw", "arw", "cr2", "cr3", "nef", "orf", "raf", "rw2"]);
 
 const extensionOf = (file: File) => file.name.split(".").pop()?.toLowerCase() ?? "";
 
 export const imageFileError = (file: File): string | null => {
   const extension = extensionOf(file);
 
-  if (rawExtensions.has(extension) || file.type.toLowerCase().includes("dng")) {
-    return "Apple ProRAW/DNG isn't supported yet. In Photos, share or export this photo as JPEG first.";
+  if (rawExtensions.has(extension)) {
+    return "That RAW format isn't supported yet — DNG works, or export this photo as JPEG first.";
   }
 
-  if (!supportedMimeTypes.has(file.type.toLowerCase()) && !supportedExtensions.has(extension)) {
-    return "Choose a JPEG, PNG, or WebP photo.";
+  if (!supportedMimeTypes.has(file.type.toLowerCase()) && !supportedExtensions.has(extension) && extension !== "dng") {
+    return "Choose a JPEG, PNG, WebP, or DNG photo.";
   }
 
   return null;

@@ -4,6 +4,7 @@ import { Music, X, Users, Plus, Globe, Lock, ImagePlus, Loader2, Sparkles, MapPi
 import SongSearch from "@/components/SongSearch";
 import { compressImage } from "@/lib/compressImage";
 import { canDecodeImage, imageFileError, SUPPORTED_IMAGE_ACCEPT } from "@/lib/imageFileValidation";
+import { convertDngToJpeg, isDngFile } from "@/lib/convertRawImage";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { dateFromYearSeason, seasonFromDate, yearFromDate } from "@/lib/memoryTime";
@@ -253,6 +254,22 @@ const AddMemoryForm = ({ onAdd, onClose, editingMemory }: AddMemoryFormProps) =>
     if (!file) return;
     const formatError = imageFileError(file);
     if (formatError) { toast.error(formatError); e.target.value = ""; return; }
+
+    if (isDngFile(file)) {
+      const toastId = toast.loading(`Converting “${file.name}”…`);
+      try {
+        const converted = await convertDngToJpeg(file);
+        setImageFile(converted);
+        setImagePreview(URL.createObjectURL(converted));
+      } catch {
+        toast.error(`Couldn't convert “${file.name}”. Try exporting it as JPEG.`);
+      } finally {
+        toast.dismiss(toastId);
+        e.target.value = "";
+      }
+      return;
+    }
+
     if (!(await canDecodeImage(file))) { toast.error(`“${file.name}” could not be read. Try exporting it as JPEG.`); e.target.value = ""; return; }
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
