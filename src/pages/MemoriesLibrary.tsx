@@ -6,6 +6,7 @@ import { useMemories } from "@/hooks/useMemories";
 import type { Memory } from "@/types/memory";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
+import MainBottomNav from "@/components/MainBottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
@@ -106,12 +107,7 @@ const MemoriesLibrary = () => {
 
     <div className="memories-bottom-fade" aria-hidden="true" />
 
-    <nav className="library-bottom-nav" aria-label="Primary navigation">
-      <button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button>
-      <button className="active"><Heart /><span>Memories</span></button>
-      <button onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
-      <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
-    </nav>
+    <MainBottomNav active="memories" friendRequestCount={friendRequestCount} />
 
     <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
       <SheetContent side="bottom" className="memories-filter-sheet">

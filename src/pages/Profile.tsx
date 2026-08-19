@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/compressImage";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
+import MainBottomNav from "@/components/MainBottomNav";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -191,12 +192,7 @@ const Profile = () => {
 
     <div className="memories-bottom-fade" aria-hidden="true" />
 
-    <nav className="library-bottom-nav" aria-label="Primary navigation">
-      <button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button>
-      <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-      <button onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
-      <button className="active"><UserRound /><span>Account</span></button>
-    </nav>
+    <MainBottomNav active="account" friendRequestCount={friendRequestCount} />
     <Dialog open={displayNameOpen} onOpenChange={setDisplayNameOpen}><DialogContent className="profile-name-dialog"><DialogHeader><DialogTitle>Change display name</DialogTitle></DialogHeader><Input value={displayNameDraft} onChange={(event) => setDisplayNameDraft(event.target.value)} maxLength={60} placeholder="Your display name" onKeyDown={(event) => { if (event.key === "Enter") saveDisplayName(); }} /><button className="profile-name-save" onClick={saveDisplayName} disabled={savingDisplayName || !displayNameDraft.trim()}>{savingDisplayName ? "Saving…" : "Save name"}</button></DialogContent></Dialog>
     <Dialog open={emailOpen} onOpenChange={setEmailOpen}><DialogContent className="profile-name-dialog"><DialogHeader><DialogTitle>Change email</DialogTitle></DialogHeader><p className="profile-dialog-copy">Supabase will send confirmation instructions. Your current email remains active until the change is verified.</p><Input type="email" value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} placeholder="New email address" onKeyDown={(event) => { if (event.key === "Enter") saveEmail(); }} /><button className="profile-name-save" onClick={saveEmail} disabled={savingEmail || !emailDraft.trim() || emailDraft.trim().toLowerCase() === user?.email?.toLowerCase()}>{savingEmail ? "Updating…" : "Update email"}</button></DialogContent></Dialog>
     <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}><DialogContent className="profile-name-dialog"><DialogHeader><DialogTitle>Change password</DialogTitle></DialogHeader><p className="profile-dialog-copy">Enter your current password, then choose a new password with at least 8 characters.</p><Input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} placeholder="Current password" /><Input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="New password" /><Input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Confirm new password" onKeyDown={(event) => { if (event.key === "Enter") savePassword(); }} /><button className="profile-name-save" onClick={savePassword} disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}>{savingPassword ? "Updating…" : "Update password"}</button></DialogContent></Dialog>

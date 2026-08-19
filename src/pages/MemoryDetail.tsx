@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CalendarDays, Clock, ContactRound, Heart, Map as MapIcon, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserPlus, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, MapPin, MoreHorizontal, Pencil, Share2, Trash2, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import MiniPlayer from "@/components/MiniPlayer";
+import MainBottomNav from "@/components/MainBottomNav";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import { useAuth } from "@/contexts/AuthContext";
@@ -214,12 +215,7 @@ const MemoryDetail = ({ overlay = false, memoryOverride = null, onClose, onDelet
       </div>
     </div>
 
-    <nav className="library-bottom-nav" aria-label="Primary navigation">
-      <button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button>
-      <button className="active" onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-      <button onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
-      <button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
-    </nav>
+    <MainBottomNav active="memories" friendRequestCount={friendRequestCount} />
 
     <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent className="max-w-sm rounded-2xl"><AlertDialogHeader><AlertDialogTitle>Delete this memory?</AlertDialogTitle><AlertDialogDescription>This permanently removes “{memory.title}.” This can’t be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => { await deleteMemory(memory.id); if (onClose) onClose(); else navigate("/journal", { replace: true }); }}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 

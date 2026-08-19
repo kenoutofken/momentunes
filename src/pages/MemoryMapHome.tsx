@@ -21,6 +21,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import MemoryDetail from "@/pages/MemoryDetail";
+import MainBottomNav from "@/components/MainBottomNav";
 import OnboardingTour, { type TourStep } from "@/components/OnboardingTour";
 import MarqueeTitle from "@/components/MarqueeTitle";
 import { shareMemory } from "@/lib/shareMemory";
@@ -732,12 +733,7 @@ const MemoryMapHome = () => {
       )}
       </AnimatePresence>
 
-      <nav className="map-bottom-nav" aria-label="Primary navigation">
-        <button className="active"><MapIcon /><span>Map</span></button>
-        <button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button>
-        <button data-tour="friends" onClick={() => navigate("/friends")}><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button>
-        <button data-tour="account" onClick={() => navigate("/account")}><UserRound /><span>Account</span></button>
-      </nav>
+      <MainBottomNav active="map" friendRequestCount={friendRequestCount} />
 
       <QuickAddMemorySheet open={showForm} initialLocation={formInitialLocation} onOpenChange={(open) => { setShowForm(open); if (!open) setFormInitialLocation(null); }} onAdd={async (data) => { const saved = Boolean(await addMemory({ ...data, tags: data.tags ?? [] })); if (saved && formInitialLocation) completeMapAddHint(); return saved; }} />
       {detailMemory && <MemoryDetail

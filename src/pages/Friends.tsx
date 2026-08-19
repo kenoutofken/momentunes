@@ -8,6 +8,7 @@ import { useMemories } from "@/hooks/useMemories";
 import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import { supabase } from "@/integrations/supabase/client";
 import QuickAddMemorySheet from "@/components/QuickAddMemorySheet";
+import MainBottomNav from "@/components/MainBottomNav";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -295,7 +296,7 @@ const Friends = () => {
 
     <div className="memories-bottom-fade" aria-hidden="true" />
 
-    <nav className="library-bottom-nav" aria-label="Primary navigation"><button onClick={() => navigate("/")}><MapIcon /><span>Map</span></button><button onClick={() => navigate("/journal")}><Heart /><span>Memories</span></button><button className="active"><span className="nav-icon-wrap"><ContactRound />{friendRequestCount > 0 && <span className="nav-request-badge">{friendRequestCount > 9 ? "9+" : friendRequestCount}</span>}</span><span>Friends</span></button><button onClick={() => navigate("/account")}><UserRound /><span>Account</span></button></nav>
+    <MainBottomNav active="friends" friendRequestCount={friendRequestCount} />
 
     <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) { setPeopleQuery(""); setPeople([]); } }}><DialogContent className="friends-add-dialog"><DialogHeader><DialogTitle>Add friend</DialogTitle><DialogDescription>Search by username or name to send a friend request.</DialogDescription></DialogHeader><div className="friends-people-search"><Search /><input autoFocus value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} placeholder="Search by username or name…" /></div><div className="friends-people-results">{peopleLoading ? <Loader2 className="animate-spin" /> : people.map((person) => { const isFriend = friendIds.has(person.userId); const isRequested = outgoingRequestIds.has(person.userId); const isIncoming = incomingRequestIds.has(person.userId); return <div key={person.userId}><span className="friend-search-avatar">{person.avatarUrl ? <img src={person.avatarUrl} alt="" /> : person.username.slice(0,2).toUpperCase()}</span><span><strong>@{person.username}</strong>{person.displayName && <small>{person.displayName}</small>}</span><button disabled={isFriend || isRequested || isIncoming || savingId === person.userId} onClick={() => void addFriend(person)}>{savingId === person.userId ? <Loader2 className="animate-spin" /> : isFriend ? <><UserCheck />Friends</> : isRequested ? <><Check />Requested</> : isIncoming ? <><UserCheck />Respond above</> : <><UserPlus />Request</>}</button></div>; })}</div></DialogContent></Dialog>
 
