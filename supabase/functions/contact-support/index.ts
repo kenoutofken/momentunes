@@ -36,27 +36,25 @@ serve(async (req) => {
       return jsonResponse({ error: "Enter a message of 2,000 characters or fewer" }, 400);
     }
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    const supportFromEmail = Deno.env.get("SUPPORT_FROM_EMAIL");
-    if (!resendApiKey || !supportFromEmail) {
-      console.error("Contact support email secrets are not configured");
+    const formspreeFormId = Deno.env.get("FORMSPREE_FORM_ID");
+    if (!formspreeFormId) {
+      console.error("Contact support Formspree form ID is not configured");
       return jsonResponse({ error: "Support email is not configured" }, 503);
     }
 
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetch(`https://formspree.io/f/${formspreeFormId}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
-        from: supportFromEmail,
-        to: ["hi@yauken.com"],
-        reply_to: user.email,
-        subject: `Momentunes Support: ${subject.trim()}`,
-        text: `${message.trim()}\n\nAccount email: ${user.email}\nUser ID: ${user.id}`,
+        _subject: `Momentunes Support: ${subject.trim()}`,
+        _replyto: user.email,
+        message: message.trim(),
+        userId: user.id,
       }),
     });
 
     if (!response.ok) {
-      console.error("Resend contact-support error", response.status, await response.text());
+      console.error("Formspree contact-support error", response.status, await response.text());
       return jsonResponse({ error: "Could not deliver support request" }, 502);
     }
 
