@@ -7,6 +7,7 @@ import Landing from "./Landing";
 import { CheckCircle2, Eye, EyeOff, MapPin, Music2, Quote } from "lucide-react";
 import { PressableButton } from "@/components/ui/pressable-button";
 import BrandMark from "@/components/BrandMark";
+import PrivacyPolicyDialog from "@/components/PrivacyPolicyDialog";
 
 type AuthView = "landing" | "signin" | "signup" | "signup-success";
 
@@ -44,6 +45,7 @@ const Auth = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [storyIndex, setStoryIndex] = useState(0);
   const navigate = useNavigate();
@@ -285,7 +287,7 @@ const Auth = () => {
         </p>
 
         </div>
-        <p className="auth-terms">By continuing, you agree to the Terms and Privacy Policy.</p>
+        <p className="auth-terms">By continuing, you agree to the Terms and <button type="button" className="auth-terms-link" onClick={() => setPrivacyOpen(true)}>Privacy Policy</button>.</p>
       </section>
       <aside className="auth-story-panel">
         <div className="auth-story-copy"><span>{story.eyebrow}</span><h2>{story.title}</h2><p>{story.copy}</p></div>
@@ -293,6 +295,7 @@ const Auth = () => {
         <div className="auth-story-controls" aria-label="Onboarding slides">{authStories.map((item, index) => <button key={item.eyebrow} type="button" className={index === storyIndex ? "active" : ""} onClick={() => setStoryIndex(index)} aria-label={`Show slide ${index + 1}`} />)}</div>
         <div className="auth-floating-icon auth-pin"><MapPin /></div><div className="auth-floating-icon auth-note"><Music2 /></div>
       </aside>
+      <PrivacyPolicyDialog open={privacyOpen} onOpenChange={setPrivacyOpen} />
     </main>
   );
 };
