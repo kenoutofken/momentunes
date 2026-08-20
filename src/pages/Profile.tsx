@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Camera, ChevronRight, Compass, ContactRound, Heart, KeyRound, LifeBuoy, Loader2, LogOut, Mail, Map as MapIcon, MapPin, Plus, Star, UserRound } from "lucide-react";
+import { Camera, ChevronRight, Compass, ContactRound, Heart, KeyRound, LifeBuoy, Loader2, LogOut, Mail, Map as MapIcon, MapPin, Plus, Shield, Star, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { compressImage } from "@/lib/compressImage";
 import { useCurrentProfile } from "@/hooks/useCurrentProfile";
 import { useFriendRequestCount } from "@/hooks/useFriendRequestCount";
 import MainBottomNav from "@/components/MainBottomNav";
+import PrivacyPolicyDialog from "@/components/PrivacyPolicyDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +39,7 @@ const Profile = () => {
   const [supportSubject, setSupportSubject] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
   const [sendingSupport, setSendingSupport] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const displayName = profile?.display_name || user?.user_metadata?.display_name || user?.user_metadata?.username || user?.email?.split("@")[0] || "Music lover";
@@ -190,10 +192,12 @@ const Profile = () => {
         <div className="profile-link-group">
           <button onClick={() => navigate("/?tour=1")}><span><Compass />Show me around again</span><ChevronRight /></button>
           <button onClick={() => setSupportOpen(true)}><span><LifeBuoy />Contact support</span><ChevronRight /></button>
+          <button onClick={() => setPrivacyOpen(true)}><span><Shield />Privacy Policy</span><ChevronRight /></button>
         </div>
       </section>
 
       <button className="profile-signout" onClick={async () => { await signOut(); navigate("/auth"); }}><LogOut />Sign out</button>
+      <PrivacyPolicyDialog open={privacyOpen} onOpenChange={setPrivacyOpen} />
     </div>
 
     </div>
