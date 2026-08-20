@@ -123,11 +123,19 @@ const Profile = () => {
     const message = supportMessage.trim();
     if (!subject || !message) return;
     setSendingSupport(true);
-    const { error } = await supabase.functions.invoke("contact-support", { body: { subject, message } });
-    setSendingSupport(false);
-    if (error) {
+    try {
+      const response = await fetch("https://formspree.io/f/meorrvgd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ _subject: `Momentunes Support: ${subject}`, _replyto: user?.email, message, userId: user?.id }),
+      });
+      if (!response.ok) throw new Error(`Formspree request failed (${response.status})`);
+    } catch (error) {
+      console.error(error);
       toast.error("Could not send your message. Please try again.");
       return;
+    } finally {
+      setSendingSupport(false);
     }
     setSupportOpen(false);
     setSupportSubject("");
